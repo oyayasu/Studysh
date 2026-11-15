@@ -47,7 +47,7 @@ private fun normalizeStudyJson(input:String):String {
  }
  // Some chat/export surfaces escape Markdown and JSON punctuation in the outer text.
  // Only remove backslashes before punctuation that is illegal as a JSON escape.
- text=text.replace(Regex("""\\\\([\\[\\]\\*\\_])"""),"$1")
+ text=text.replace(Regex("""(?<!\\)\\([\[\]\*_])"""),"$1")
  return text
 }
 private fun parseEntries(raw:String):List<Entry>{
