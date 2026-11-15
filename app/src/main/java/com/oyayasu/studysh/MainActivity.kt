@@ -45,8 +45,8 @@ class MainActivity:ComponentActivity(){
 }
 private fun normalizeStudyJson(input:String):String {
  var source=input.trim().removePrefix("\uFEFF").trim()
- if(source.startsWith(""```"")){
-  source=source.substringAfter('\n',source).substringBeforeLast(""```"",source).trim()
+ if(source.startsWith("```")){
+  source=source.substringAfter('\n',source).substringBeforeLast("```",source).trim()
  }
  val result=StringBuilder(source.length)
  var quoted=false
