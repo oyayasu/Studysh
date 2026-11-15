@@ -40,6 +40,16 @@ class MainActivity:ComponentActivity(){
   ) }
  }
 }
+private fun normalizeStudyJson(input:String):String {
+ var text=input.trim().removePrefix("\uFEFF").trim()
+ if(text.startsWith("```")){
+  text=text.substringAfter('\n',text).substringBeforeLast("```",text).trim()
+ }
+ // Some chat/export surfaces escape Markdown and JSON punctuation in the outer text.
+ // Only remove backslashes before punctuation that is illegal as a JSON escape.
+ text=text.replace(Regex("""\\\\([\\[\\]\\*\\_])"""),"$1")
+ return text
+}
 private fun parseEntries(raw:String):List<Entry>{
  val root=JSONObject(raw); val arr=root.optJSONArray("entries")?:JSONArray()
  return (0 until arr.length()).mapNotNull { i ->
@@ -77,7 +87,7 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
  }
  fun merge(raw:String){
   try {
-   val normalized=raw.trim().removePrefix("\uFEFF").removePrefix("```json").removePrefix("```JSON").removePrefix("```").removeSuffix("```").trim()
+   val normalized=normalizeStudyJson(raw)
    val root=JSONObject(normalized)
    if(root.optString("schemaVersion")!="1.0") throw IllegalArgumentException("Unsupported schemaVersion. Expected 1.0.")
    if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
