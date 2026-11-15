@@ -148,7 +148,7 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
     }
    }else{
     when(page){
-     0->LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+     0->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
       item{Text("New search",fontSize=27.sp,fontWeight=FontWeight.Bold);Text("Explore up to five expressions.",color=Muted)}
       items(fields.size){i->
        Row(verticalAlignment=Alignment.CenterVertically){
@@ -164,7 +164,7 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
        OutlinedButton(onClick={showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
      }
-     else->LazyColumn(contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
+     else->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
       item{
        Row(verticalAlignment=Alignment.CenterVertically){Text("Library",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));IconButton(onClick={compact=!compact}){Icon(Icons.Outlined.Tune,"Layout")}}
        Spacer(Modifier.height(8.dp))
@@ -193,7 +193,6 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
       if(visible.isEmpty())item{Text(if(entries.isEmpty())"Your library is empty. Add your first study term." else "No matching terms.",color=Muted,modifier=Modifier.padding(top=16.dp))}
      }
     }
-    Spacer(Modifier.weight(1f))
     NavigationBar(containerColor=Color(0xFFFAF7FD),tonalElevation=0.dp){
      NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.Home,null)},label={Text("Home")})
      NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text("Create")})
