@@ -51,13 +51,15 @@ private fun normalizeStudyJson(input:String):String {
  return text
 }
 private fun recoverCompleteEntries(raw:String):List<JSONObject> {
- val start=Regex(""""entries"\\s*:\\s*\\["""").find(raw)?.range?.last?.plus(1) ?: return emptyList()
+ val key=raw.indexOf("\"entries\""); if(key<0)return emptyList()
+ val bracket=raw.indexOf('[',key); if(bracket<0)return emptyList()
+ val start=bracket+1
  val found=mutableListOf<JSONObject>()
  var depth=0; var begin=-1; var quoted=false; var escaped=false
  for(i in start until raw.length){
   val c=raw[i]
   if(quoted){
-   if(escaped) escaped=false else if(c=='\\\\') escaped=true else if(c=='"') quoted=false
+   if(escaped) escaped=false else if(c=='\\') escaped=true else if(c=='"') quoted=false
    continue
   }
   if(c=='"'){quoted=true;continue}
