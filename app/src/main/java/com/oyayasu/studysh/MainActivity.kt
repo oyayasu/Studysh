@@ -189,6 +189,11 @@ Each entry may have ANY number of blocks, any titles, and any combination of tex
       }
      }
      items(item.notes.size){index->StudyNoteCard(item.notes[index],index)}
+     val savedPersonal=runCatching{JSONObject(item.original).optJSONArray("personalNotes")}.getOrNull()
+     if(savedPersonal!=null)items(savedPersonal.length()){index->
+      val note=savedPersonal.optJSONObject(index)?.optString("text").orEmpty()
+      if(note.isNotBlank())StudyNoteCard(Note("My notes","plain",note),index)
+     }
      item {
       Column(Modifier.fillMaxWidth().border(1.dp,Color(0xFFE5E1E9),RoundedCornerShape(20.dp)).background(Color.White,RoundedCornerShape(20.dp)).padding(16.dp)){
        Row(verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.EditNote,null);Spacer(Modifier.width(8.dp));Text("My notes",fontSize=19.sp,fontWeight=FontWeight.Bold)}
