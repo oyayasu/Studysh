@@ -311,10 +311,10 @@ private fun markdown(text:String):AnnotatedString = buildAnnotatedString {
   else->Pastels[index%Pastels.size]
  }
  val icon=when(note.type.lowercase()){
-  "purple","concept","definition"->Icons.Outlined.MenuBook
-  "blue","grammar","pattern","patterns"->Icons.Outlined.Widgets
-  "green","examples","usage","comparison"->Icons.Outlined.SpeakerNotes
-  "yellow","nuance","observation"->Icons.Outlined.LightbulbOutline
+  "purple","concept","definition"->Icons.Outlined.Book
+  "blue","grammar","pattern","patterns"->Icons.Outlined.Extension
+  "green","examples","usage","comparison"->Icons.Outlined.ChatBubbleOutline
+  "yellow","nuance","observation"->Icons.Outlined.Lightbulb
   "rose","warning","caveat","ambiguity"->Icons.Outlined.Info
   else->Icons.Outlined.Notes
  }
