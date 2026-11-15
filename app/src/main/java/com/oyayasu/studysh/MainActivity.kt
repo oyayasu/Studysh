@@ -50,6 +50,26 @@ private fun normalizeStudyJson(input:String):String {
  text=text.replace(Regex("""(?<!\\)\\([\[\]\*_])"""),"$1")
  return text
 }
+private fun recoverCompleteEntries(raw:String):List<JSONObject> {
+ val start=Regex(""""entries"\\s*:\\s*\\["""").find(raw)?.range?.last?.plus(1) ?: return emptyList()
+ val found=mutableListOf<JSONObject>()
+ var depth=0; var begin=-1; var quoted=false; var escaped=false
+ for(i in start until raw.length){
+  val c=raw[i]
+  if(quoted){
+   if(escaped) escaped=false else if(c=='\\\\') escaped=true else if(c=='"') quoted=false
+   continue
+  }
+  if(c=='"'){quoted=true;continue}
+  if(c=='{' ){if(depth==0)begin=i;depth++}
+  else if(c=='}' && depth>0){depth--;if(depth==0 && begin>=0){
+   runCatching{JSONObject(raw.substring(begin,i+1))}.getOrNull()?.let{found.add(it)}
+   begin=-1
+  }}
+  else if(c==']' && depth==0)break
+ }
+ return found
+}
 private fun parseEntries(raw:String):List<Entry>{
  val root=JSONObject(raw); val arr=root.optJSONArray("entries")?:JSONArray()
  return (0 until arr.length()).mapNotNull { i ->
@@ -88,10 +108,16 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
  fun merge(raw:String){
   try {
    val normalized=normalizeStudyJson(raw)
-   val root=JSONObject(normalized)
+   val root=runCatching { JSONObject(normalized) }.getOrElse { parseError ->
+    val recovered=recoverCompleteEntries(normalized)
+    if(recovered.isEmpty()) throw IllegalArgumentException("The response is incomplete or invalid. Copy the complete JSON or import a .json file.")
+    val arr=JSONArray();recovered.forEach{arr.put(it)}
+    JSONObject().put("schemaVersion","1.0").put("entries",arr)
+   }
+   val partial=runCatching{JSONObject(normalized)}.isFailure
    if(root.optString("schemaVersion")!="1.0") throw IllegalArgumentException("Unsupported schemaVersion. Expected 1.0.")
    if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
-   val incoming=parseEntries(normalized)
+   val incoming=parseEntries(root.toString())
    if(incoming.isEmpty()) throw IllegalArgumentException("No terms found in JSON.")
    val map=linkedMapOf<String,JSONObject>()
    entries.forEach { map[it.term.lowercase()]=JSONObject(it.original) }
@@ -109,8 +135,8 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
    }
    val arr=JSONArray();map.values.forEach { arr.put(it) }
    library=JSONObject().put("schemaVersion","1.0").put("entries",arr).toString()
-   save(library);entries=parseEntries(library);error="Imported ${incoming.size} term(s).";showPaste=false;page=1
-  }catch(e:Exception){error="Import failed: ${e.message}"}
+   save(library);entries=parseEntries(library);error=if(partial) "Recovered ${incoming.size} complete term(s). The response was cut off; remaining terms were not imported." else "Imported ${incoming.size} term(s).";showPaste=false;page=1
+  }catch(e:Exception){error="Import failed: "+(e.message?:"Invalid JSON").take(180)}
  }
  MaterialTheme(colorScheme=lightColorScheme(primary=Ink,background=Canvas,surface=Color.White,onSurface=Ink)){
   Column(Modifier.fillMaxSize().background(Canvas)){
@@ -213,7 +239,7 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
      NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text("Create")})
     }
    }
-   if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp)
+   if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp,maxLines=4,overflow=TextOverflow.Ellipsis)
   }
   if(showPaste) AlertDialog(onDismissRequest={showPaste=false},title={Text("Import study response")},text={
    Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
