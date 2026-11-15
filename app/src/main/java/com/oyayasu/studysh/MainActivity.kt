@@ -28,7 +28,7 @@ import org.json.JSONObject
 
 private val Ink=Color(0xFF17191C)
 private val Muted=Color(0xFF74777D)
-private val Canvas=Color(0xFFF9FAFB)
+private val Canvas=Color(0xFFFCFBFE)
 private val Pastels=listOf(Color(0xFFF9F0E4),Color(0xFFEAF1FB),Color(0xFFE7F5EE),Color(0xFFF5ECF5),Color(0xFFFFF3DF),Color(0xFFEBF2F3))
 data class Note(val title:String,val type:String,val content:String)
 data class Entry(val term:String,val pronunciation:String,val status:String,val notes:List<Note>,val original:String)
@@ -58,7 +58,9 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
 @Composable private fun StudyshApp(read:()->String,save:(String)->Unit){
  var library by remember { mutableStateOf(read()) }
  var entries by remember { mutableStateOf(runCatching { parseEntries(library) }.getOrDefault(emptyList())) }
- var page by remember { mutableStateOf(0) }
+ var page by remember { mutableStateOf(1) }
+ var filter by remember { mutableStateOf("All") }
+ var compact by remember { mutableStateOf(true) }
  var selected by remember { mutableStateOf<Entry?>(null) }
  var search by remember { mutableStateOf("") }
  var fields by remember { mutableStateOf(listOf("")) }
@@ -98,7 +100,9 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
  MaterialTheme(colorScheme=lightColorScheme(primary=Ink,background=Canvas,surface=Color.White,onSurface=Ink)){
   Column(Modifier.fillMaxSize().background(Canvas)){
    Row(Modifier.fillMaxWidth().padding(horizontal=22.dp, vertical=18.dp),verticalAlignment=Alignment.CenterVertically){
-    Text("Studysh",fontSize=26.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+    Icon(Icons.Outlined.Layers,null,tint=Color(0xFF8C60CB),modifier=Modifier.size(28.dp))
+    Spacer(Modifier.width(10.dp))
+    Text("Studysh",fontSize=27.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
     IconButton(onClick={picker.launch("application/json")}){Icon(Icons.Outlined.FileUpload,"Import JSON")}
    }
    if(selected!=null){
@@ -107,30 +111,25 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
      IconButton(onClick={selected=null}){Icon(Icons.Outlined.ArrowBack,"Back")}
      Text("Library",color=Muted)
     }
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(18.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
      item {
-      Column(Modifier.fillMaxWidth().border(1.dp,Color(0xFFE4E5E7),RoundedCornerShape(22.dp)).background(Color.White,RoundedCornerShape(22.dp)).padding(20.dp)){
-       Row(verticalAlignment=Alignment.CenterVertically){
-        Text(item.term,fontSize=32.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
-        Text(item.status,color=Muted,fontSize=12.sp)
-       }
-       if(item.pronunciation.isNotBlank())Text(item.pronunciation,color=Muted,fontSize=16.sp)
+      Row(verticalAlignment=Alignment.CenterVertically){
+       Column(Modifier.weight(1f)){Text(item.term,fontSize=30.sp,fontWeight=FontWeight.Bold);if(item.pronunciation.isNotBlank())Text(item.pronunciation,color=Muted,fontSize=15.sp)}
+       Surface(color=Color(0xFFEDE1FC),shape=RoundedCornerShape(50)){Text(item.status,Modifier.padding(horizontal=12.dp,vertical=6.dp),color=Color(0xFF6D42A4),fontSize=12.sp)}
       }
      }
-     items(item.notes){note->
-      val idx=item.notes.indexOf(note)
-      Column(Modifier.fillMaxWidth().background(Pastels[idx%Pastels.size],RoundedCornerShape(20.dp)).padding(18.dp)){
-       Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)){
-        Icon(when(note.type.lowercase()){"grammar","pattern"->Icons.Outlined.Extension;"comparison","contrast"->Icons.Outlined.CompareArrows;"concept"->Icons.Outlined.Lightbulb;"examples","usage"->Icons.Outlined.ChatBubbleOutline;else->Icons.Outlined.StickyNote2},null,modifier=Modifier.size(20.dp))
-        Text(note.title,fontSize=19.sp,fontWeight=FontWeight.Bold)
-       }
-       Spacer(Modifier.height(12.dp))
-       Text(note.content,fontSize=16.sp,lineHeight=25.sp)
+     val noteGroups=item.notes.chunked(2)
+     items(noteGroups.size){groupIndex->
+      val group=noteGroups[groupIndex]
+      val wide=group.size==1 || !compact || group.any{it.content.length>165 || it.content.count{c->c=='\n'}>3}
+      if(wide){Column(verticalArrangement=Arrangement.spacedBy(12.dp)){group.forEach{note->StudyNoteCard(note,item.notes.indexOf(note))}}}
+      else Row(horizontalArrangement=Arrangement.spacedBy(10.dp),modifier=Modifier.fillMaxWidth()){
+       group.forEach{note->Box(Modifier.weight(1f)){StudyNoteCard(note,item.notes.indexOf(note))}}
       }
      }
      item {
-      Column(Modifier.fillMaxWidth().border(1.dp,Color.LightGray,RoundedCornerShape(20.dp)).padding(16.dp)){
-       Text("My notes",fontSize=20.sp,fontWeight=FontWeight.Bold)
+      Column(Modifier.fillMaxWidth().border(1.dp,Color(0xFFE5E1E9),RoundedCornerShape(20.dp)).background(Color.White,RoundedCornerShape(20.dp)).padding(16.dp)){
+       Row(verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.EditNote,null);Spacer(Modifier.width(8.dp));Text("My notes",fontSize=19.sp,fontWeight=FontWeight.Bold)}
        Spacer(Modifier.height(8.dp))
        OutlinedTextField(value=customNote,onValueChange={customNote=it},placeholder={Text("Add your own observation...")},modifier=Modifier.fillMaxWidth(),minLines=3)
        Spacer(Modifier.height(8.dp))
@@ -138,7 +137,7 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
         if(customNote.isNotBlank()){
          val obj=JSONObject(item.original)
          val arr=obj.optJSONArray("notes")?:JSONArray()
-         arr.put(JSONObject().put("id","personal-${System.currentTimeMillis()}").put("type","custom").put("title","My notes").put("content",customNote))
+         arr.put(JSONObject().put("id","personal-"+System.currentTimeMillis()).put("type","custom").put("title","My notes").put("content",customNote))
          val all=JSONObject(library);val data=all.getJSONArray("entries")
          for(i in 0 until data.length()){if(data.getJSONObject(i).optString("term")==item.term){data.put(i,obj);break}}
          library=all.toString();save(library);entries=parseEntries(library);selected=entries.find{it.term==item.term};customNote=""
@@ -165,25 +164,39 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
        OutlinedButton(onClick={showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
      }
-     else->LazyColumn(contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+     else->LazyColumn(contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
       item{
-       Text("Library",fontSize=27.sp,fontWeight=FontWeight.Bold)
-       Spacer(Modifier.height(12.dp))
-       OutlinedTextField(value=search,onValueChange={search=it},label={Text("Search your terms")},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(16.dp))
+       Row(verticalAlignment=Alignment.CenterVertically){Text("Library",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));IconButton(onClick={compact=!compact}){Icon(Icons.Outlined.Tune,"Layout")}}
+       Spacer(Modifier.height(8.dp))
+       OutlinedTextField(value=search,onValueChange={search=it},placeholder={Text("Search your terms")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(22.dp))
+       Spacer(Modifier.height(10.dp))
+       Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){listOf("All","English","Japanese","Other").forEach{f->
+        val active=filter==f
+        Surface(onClick={filter=f},color=if(active)Color(0xFF956DCE) else Color.White,shape=RoundedCornerShape(50),border=if(active)null else androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE6E0EA))){
+         Text(f,Modifier.padding(horizontal=12.dp,vertical=9.dp),fontSize=12.sp,color=if(active)Color.White else Ink)
+        }
+       }}
       }
-      items(entries.filter{it.term.contains(search,true)}){entry->
-       Column(Modifier.fillMaxWidth().background(Color.White,RoundedCornerShape(18.dp)).border(1.dp,Color(0xFFE9EAED),RoundedCornerShape(18.dp)).clickable{selected=entry}.padding(18.dp)){
-        Text(entry.term,fontSize=20.sp,fontWeight=FontWeight.Bold)
-        Text("${entry.notes.size} notes  ·  ${entry.status}",color=Muted,fontSize=13.sp)
+      val visible=entries.filter{it.term.contains(search,true)}.filter{entry->
+       val language=runCatching{JSONObject(entry.original).optString("language","English")}.getOrDefault("English")
+       filter=="All" || (filter=="Other" && language !in listOf("English","Japanese")) || language.equals(filter,true)
+      }
+      items(visible.size){i->
+       val entry=visible[i]
+       Row(Modifier.fillMaxWidth().background(Pastels[i%Pastels.size],RoundedCornerShape(22.dp)).clickable{selected=entry}.padding(18.dp),verticalAlignment=Alignment.CenterVertically){
+        Icon(Icons.Outlined.BookmarkBorder,null,modifier=Modifier.size(25.dp))
+        Spacer(Modifier.width(16.dp))
+        Column(Modifier.weight(1f)){Text(entry.term,fontSize=21.sp,fontWeight=FontWeight.Bold);Text(entry.pronunciation.ifBlank{"${entry.notes.size} study notes"},fontSize=13.sp,color=Muted,maxLines=1)}
+        Surface(color=Color.White.copy(alpha=.65f),shape=RoundedCornerShape(50)){Text("EN",Modifier.padding(horizontal=9.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
        }
       }
-      if(entries.isEmpty())item{Text("No terms yet. Import an AI response to begin.",color=Muted)}
+      if(visible.isEmpty())item{Text(if(entries.isEmpty())"Your library is empty. Add your first study term." else "No matching terms.",color=Muted,modifier=Modifier.padding(top=16.dp))}
      }
     }
     Spacer(Modifier.weight(1f))
-    NavigationBar(containerColor=Color.White){
-     NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.Search,null)},label={Text("Search")})
-     NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.AutoStories,null)},label={Text("Library")})
+    NavigationBar(containerColor=Color(0xFFFAF7FD),tonalElevation=0.dp){
+     NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.Home,null)},label={Text("Home")})
+     NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text("Create")})
     }
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp)
@@ -191,5 +204,16 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
   if(showPaste) AlertDialog(onDismissRequest={showPaste=false},title={Text("Import JSON")},text={
    OutlinedTextField(value=jsonText,onValueChange={jsonText=it},modifier=Modifier.fillMaxWidth().heightIn(min=170.dp),placeholder={Text("Paste the complete AI JSON response")})
   },confirmButton={TextButton(onClick={merge(jsonText)}){Text("Import")}},dismissButton={TextButton(onClick={showPaste=false}){Text("Cancel")}})
+ }
+}
+
+@Composable private fun StudyNoteCard(note:Note,index:Int){
+ Column(Modifier.fillMaxWidth().background(Pastels[index%Pastels.size],RoundedCornerShape(20.dp)).padding(16.dp)){
+  Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(7.dp)){
+   Icon(when(note.type.lowercase()){"grammar","pattern"->Icons.Outlined.Extension;"comparison","contrast"->Icons.Outlined.CompareArrows;"concept"->Icons.Outlined.Lightbulb;"examples","usage"->Icons.Outlined.ChatBubbleOutline;else->Icons.Outlined.StickyNote2},null,modifier=Modifier.size(19.dp))
+   Text(note.title,fontSize=17.sp,fontWeight=FontWeight.Bold,lineHeight=21.sp)
+  }
+  Spacer(Modifier.height(10.dp))
+  Text(note.content,fontSize=15.sp,lineHeight=23.sp)
  }
 }
