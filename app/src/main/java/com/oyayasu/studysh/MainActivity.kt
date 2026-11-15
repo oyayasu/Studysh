@@ -67,16 +67,21 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
  var error by remember { mutableStateOf("") }
  var jsonText by remember { mutableStateOf("") }
  var showPaste by remember { mutableStateOf(false) }
+ var importSource by remember { mutableStateOf("paste") }
  var editNote by remember { mutableStateOf(false) }
  var customNote by remember { mutableStateOf("") }
  val clipboard=LocalClipboardManager.current
  val context=androidx.compose.ui.platform.LocalContext.current
  val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){ uri ->
-  uri?.let { runCatching { context.contentResolver.openInputStream(it)!!.bufferedReader().use { reader -> reader.readText() } }.onSuccess { jsonText=it;showPaste=true }.onFailure { error=it.message?:"Unable to read file" } }
+  uri?.let { runCatching { context.contentResolver.openInputStream(it)!!.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() } }.onSuccess { jsonText=it;importSource="file";showPaste=true;error="" }.onFailure { error=it.message?:"Unable to read file" } }
  }
  fun merge(raw:String){
   try {
-   val incoming=parseEntries(raw)
+   val normalized=raw.trim().removePrefix("\uFEFF").removePrefix("```json").removePrefix("```JSON").removePrefix("```").removeSuffix("```").trim()
+   val root=JSONObject(normalized)
+   if(root.optString("schemaVersion")!="1.0") throw IllegalArgumentException("Unsupported schemaVersion. Expected 1.0.")
+   if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
+   val incoming=parseEntries(normalized)
    if(incoming.isEmpty()) throw IllegalArgumentException("No terms found in JSON.")
    val map=linkedMapOf<String,JSONObject>()
    entries.forEach { map[it.term.lowercase()]=JSONObject(it.original) }
@@ -161,7 +166,7 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
        Spacer(Modifier.height(16.dp))
        Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.map{it.trim()}.filter{it.isNotEmpty()})));error="Prompt copied to clipboard."},enabled=fields.any{it.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
        Spacer(Modifier.height(8.dp))
-       OutlinedButton(onClick={showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
+       OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
      }
      else->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
@@ -200,9 +205,23 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp)
   }
-  if(showPaste) AlertDialog(onDismissRequest={showPaste=false},title={Text("Import JSON")},text={
-   OutlinedTextField(value=jsonText,onValueChange={jsonText=it},modifier=Modifier.fillMaxWidth().heightIn(min=170.dp),placeholder={Text("Paste the complete AI JSON response")})
-  },confirmButton={TextButton(onClick={merge(jsonText)}){Text("Import")}},dismissButton={TextButton(onClick={showPaste=false}){Text("Cancel")}})
+  if(showPaste) AlertDialog(onDismissRequest={showPaste=false},title={Text("Import study response")},text={
+   Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
+    Text("Large lessons are supported. Import a JSON file or paste the full response from your clipboard.",color=Muted,fontSize=13.sp)
+    OutlinedButton(onClick={picker.launch("*/*")},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.FolderOpen,null);Text(" Choose JSON / TXT file")}
+    OutlinedButton(onClick={
+     val clip=clipboard.getText()?.text.orEmpty()
+     if(clip.isNotBlank()){jsonText=clip;importSource="clipboard";error=""}else error="Clipboard is empty."
+    },modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentPaste,null);Text(" Paste from clipboard")}
+    if(jsonText.isNotBlank()){
+     Text("Ready: ${jsonText.length} characters (${importSource}).",fontWeight=FontWeight.SemiBold,fontSize=13.sp)
+     Text(jsonText.take(180).replace("\\n"," ") + if(jsonText.length>180)"…" else "",fontSize=11.sp,color=Muted,maxLines=4)
+    }else{
+     OutlinedTextField(value=jsonText,onValueChange={jsonText=it},modifier=Modifier.fillMaxWidth().heightIn(min=100.dp,max=180.dp),placeholder={Text("Or paste a short JSON response here")},maxLines=5)
+    }
+   }
+  },confirmButton={TextButton(onClick={merge(jsonText)},enabled=jsonText.isNotBlank()){Text("Import")}},dismissButton={TextButton(onClick={showPaste=false}){Text("Cancel")}})
+
  }
 }
 
