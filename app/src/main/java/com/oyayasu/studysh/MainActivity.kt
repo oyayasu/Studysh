@@ -68,10 +68,6 @@ OUTPUT ONLY valid JSON (no Markdown fences or commentary) with schemaVersion "1.
  var editNote by remember { mutableStateOf(false) }
  var customNote by remember { mutableStateOf("") }
  val clipboard=LocalClipboardManager.current
- val importFile=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){ uri ->
-  uri?.let { runCatching { val text=androidx.compose.ui.platform.LocalContext.current /* placeholder */ } }
- }
- // File picker is implemented via Activity's ContentResolver in the import callback below.
  val context=androidx.compose.ui.platform.LocalContext.current
  val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){ uri ->
   uri?.let { runCatching { context.contentResolver.openInputStream(it)!!.bufferedReader().use { reader -> reader.readText() } }.onSuccess { jsonText=it;showPaste=true }.onFailure { error=it.message?:"Unable to read file" } }
