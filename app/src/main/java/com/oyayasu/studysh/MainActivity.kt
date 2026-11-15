@@ -44,14 +44,29 @@ class MainActivity:ComponentActivity(){
  }
 }
 private fun normalizeStudyJson(input:String):String {
- var text=input.trim().removePrefix("\uFEFF").trim()
- if(text.startsWith("```")){
-  text=text.substringAfter('\n',text).substringBeforeLast("```",text).trim()
+ var source=input.trim().removePrefix("\uFEFF").trim()
+ if(source.startsWith(""```"")){
+  source=source.substringAfter('\n',source).substringBeforeLast(""```"",source).trim()
  }
- // Some chat/export surfaces escape Markdown and JSON punctuation in the outer text.
- // Only remove backslashes before punctuation that is illegal as a JSON escape.
- text=text.replace(Regex("""(?<!\\)\\([\[\]\*_])"""),"$1")
- return text
+ val result=StringBuilder(source.length)
+ var quoted=false
+ var i=0
+ while(i<source.length){
+  val c=source[i]
+  if(c=='\\' && i+1<source.length){
+   val next=source[i+1]
+   if((!quoted && next in "[]{}") || (quoted && next in "*_[]")){
+    result.append(next);i+=2;continue
+   }
+   if(quoted && next=='\\' && i+2<source.length && source[i+2] in "*_"){
+    result.append(source[i+2]);i+=3;continue
+   }
+   result.append(c).append(next);i+=2;continue
+  }
+  if(c=='"')quoted=!quoted
+  result.append(c);i++
+ }
+ return result.toString()
 }
 private fun recoverCompleteEntries(raw:String):List<JSONObject> {
  val key=raw.indexOf("\"entries\""); if(key<0)return emptyList()
@@ -101,7 +116,7 @@ If a query contains parentheses, prioritize the expression inside them. If a phr
 Give examples only when they clarify usage. Explain unnatural or humorous usage when instructive. No quizzes, exercises, progress labels, filler, or motivational text.
 Return ONLY a compact, valid JSON object, without Markdown fences, with this structure:
 {"version":2,"entries":[{"term":"...","language":"English","pronunciation":"/IPA/ (only if confident)","partOfSpeech":"verb (only if relevant)","blocks":[{"style":"purple","title":"Free, natural title in Portuguese","text":"Markdown with **bold** and *italic*"},{"style":"green","title":"Exemplos naturais","examples":[{"en":"English example.","pt":"Interpretação natural em português."}]}]}]}
-Each entry may have ANY number of blocks, any titles, and any combination of text and examples. Use style values: purple (concept/explanation), blue (grammar/constructions), green (examples/comparisons), yellow (nuances/observations), rose (caveats/ambiguity), or plain (long-form text). Colors are visual hints, NOT required categories. Omit fields that do not apply. Use simple Markdown **bold** and *italic* within text; never put Markdown syntax in titles. Use explicit examples arrays for paired translations. Make the JSON as short as reasonably possible while preserving meaningful distinctions. Never output partial JSON; if the response would be too long, output fewer COMPLETE entries.
+Each entry may have ANY number of blocks, any titles, and any combination of text and examples. Use style values: purple (concept/explanation), blue (grammar/constructions), green (examples/comparisons), yellow (nuances/observations), rose (caveats/ambiguity), or plain (long-form text). Colors are visual hints, NOT required categories. Omit fields that do not apply. Use simple Markdown **bold** and *italic* within text; never put Markdown syntax in titles. Use explicit examples arrays for paired translations. Make the JSON as short as reasonably possible while preserving meaningful distinctions. Always include ALL requested terms in a single valid JSON document. Keep explanations concise enough to fit the response. If output length is a concern, shorten blocks rather than omit terms. Do not escape Markdown asterisks, square brackets or underscores; use normal JSON escaping only.
 """.trimIndent()
 @Composable private fun StudyshApp(read:()->String,save:(String)->Unit){
  var library by remember { mutableStateOf(read()) }
@@ -128,11 +143,9 @@ Each entry may have ANY number of blocks, any titles, and any combination of tex
    val normalized=normalizeStudyJson(raw)
    val root=runCatching { JSONObject(normalized) }.getOrElse { parseError ->
     val recovered=recoverCompleteEntries(normalized)
-    if(recovered.isEmpty()) throw IllegalArgumentException("The response is incomplete or invalid. Copy the complete JSON or import a .json file.")
-    val arr=JSONArray();recovered.forEach{arr.put(it)}
-    JSONObject().put("version",2).put("entries",arr)
+    throw IllegalArgumentException("JSON is incomplete or malformed. No terms were imported. Please import a complete .json file or copy the entire response.")
    }
-   val partial=runCatching{JSONObject(normalized)}.isFailure
+   val partial=false
    if(root.optString("schemaVersion")!="1.0" && root.optInt("version")!=2) throw IllegalArgumentException("Unsupported JSON format. Expected Studysh v2 or legacy v1.")
    if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
    val incoming=parseEntries(root.toString())
@@ -288,14 +301,22 @@ Each entry may have ANY number of blocks, any titles, and any combination of tex
  }
 }
 
-private fun markdown(text:String):AnnotatedString = buildAnnotatedString {
- val regex=Regex("""(\\*\\*[^*]+\\*\\*|\\*[^*\\n]+\\*)""")
+private fun readableText(raw:String):String {
+ return raw.replace("\\r\\n","\n").replace("\\n","\n").replace("\\t","  ")
+  .replace("\\*","*").replace("\\_","_")
+}
+private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
+ val text=readableText(raw)
+ val regex=Regex("""(\*\*[^*]+\*\*|\*[^*\n]+\*)""")
  var cursor=0
  regex.findAll(text).forEach { match ->
   append(text.substring(cursor,match.range.first))
   val bold=match.value.startsWith("**")
   val stripped=if(bold)match.value.drop(2).dropLast(2) else match.value.drop(1).dropLast(1)
-  withStyle(SpanStyle(fontWeight=if(bold)FontWeight.Bold else FontWeight.Normal,fontStyle=if(bold)FontStyle.Normal else FontStyle.Italic)){append(stripped)}
+  withStyle(SpanStyle(
+   fontWeight=if(bold)FontWeight.Bold else FontWeight.Normal,
+   fontStyle=if(bold)FontStyle.Normal else FontStyle.Italic
+  )){append(stripped)}
   cursor=match.range.last+1
  }
  append(text.substring(cursor))
@@ -327,8 +348,8 @@ private fun markdown(text:String):AnnotatedString = buildAnnotatedString {
   note.examples.forEachIndexed { i,example ->
    if(i>0)HorizontalDivider(color=Color(0x1C5D6064),thickness=1.dp)
    Column(verticalArrangement=Arrangement.spacedBy(5.dp)){
-    Text(example.first,fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp,color=Ink)
-    if(example.second.isNotBlank())Text(example.second,fontSize=14.sp,lineHeight=21.sp,color=Muted)
+    Text(readableText(example.first),fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp,color=Ink)
+    if(example.second.isNotBlank())Text(readableText(example.second),fontSize=14.sp,lineHeight=21.sp,color=Muted)
    }
   }
  }
