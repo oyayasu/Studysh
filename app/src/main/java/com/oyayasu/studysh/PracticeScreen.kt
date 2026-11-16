@@ -1,6 +1,7 @@
 package com.oyayasu.studysh
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -11,6 +12,10 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
@@ -104,9 +109,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
         Text("Little by little.",fontSize=21.sp,fontWeight=FontWeight.Bold,color=Dark)
         Text("Understand the pattern. Then use it naturally.",fontSize=14.sp,lineHeight=21.sp,color=Soft)
        }
-       Box(Modifier.size(78.dp).background(Color(0xFFD5B7F6),RoundedCornerShape(46.dp)),contentAlignment=Alignment.Center){
-        Icon(Icons.Outlined.AutoAwesome,null,tint=Color(0xFF6B439D),modifier=Modifier.size(34.dp))
-       }
+       StudyshMascot(Modifier.size(86.dp))
       }
      }
     }
@@ -231,5 +234,19 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  Surface(onClick=onClick,enabled=enabled,color=if(selected)Color(0xFFE4D6F5) else Color.White,
   shape=RoundedCornerShape(13.dp),border=BorderStroke(1.dp,if(selected)Lavender else Color(0xFFE0DEE3))){
   Text(text,Modifier.padding(horizontal=15.dp,vertical=12.dp),fontSize=15.sp,color=Dark)
+ }
+}
+
+@Composable private fun StudyshMascot(modifier:Modifier=Modifier){
+ Canvas(modifier){
+  val w=size.width;val h=size.height
+  drawOval(brush=Brush.radialGradient(listOf(Color(0xFFF8EDFF),Color(0xFFD6B4F1),Color(0xFFB18BDC)),
+   center=Offset(w*.38f,h*.24f),radius=w*.82f),
+   topLeft=Offset(w*.07f,h*.10f),size=Size(w*.86f,h*.81f))
+  drawOval(color=Color.White.copy(alpha=.36f),topLeft=Offset(w*.24f,h*.17f),size=Size(w*.38f,h*.13f))
+  drawCircle(color=Color(0xFF40314E),radius=w*.034f,center=Offset(w*.39f,h*.51f))
+  drawCircle(color=Color(0xFF40314E),radius=w*.034f,center=Offset(w*.61f,h*.51f))
+  drawArc(color=Color(0xFF59416C),startAngle=15f,sweepAngle=150f,useCenter=false,
+   topLeft=Offset(w*.445f,h*.55f),size=Size(w*.11f,h*.11f),style=Stroke(width=w*.022f))
  }
 }
