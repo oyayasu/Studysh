@@ -212,6 +212,15 @@ Each entry has a flexible number of blocks with FREE titles. Blocks may contain 
        Icon(Icons.Outlined.BookmarkBorder,"Bookmark",tint=Muted)
       }
      }
+     val studyContext=runCatching{JSONObject(item.original).optString("context")}.getOrDefault("")
+     if(studyContext.isNotBlank())item{
+      Surface(color=Color(0xFFF1ECF8),shape=RoundedCornerShape(14.dp)){
+       Row(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=11.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)){
+        Icon(Icons.Outlined.TravelExplore,null,modifier=Modifier.size(18.dp),tint=Color(0xFF785C9E))
+        Column{Text("Original context",fontWeight=FontWeight.SemiBold,fontSize=12.sp,color=Color(0xFF785C9E));Text(studyContext,fontSize=14.sp,lineHeight=20.sp)}
+       }
+      }
+     }
      items(item.notes.size){index->StudyNoteCard(item.notes[index],index)}
      val savedPersonal=runCatching{JSONObject(item.original).optJSONArray("personalNotes")}.getOrNull()
      if(savedPersonal!=null)items(savedPersonal.length()){index->
@@ -356,12 +365,29 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
   "rose","warning","caveat","ambiguity"->Icons.Outlined.Info
   else->Icons.Outlined.Notes
  }
- Column(Modifier.fillMaxWidth().background(tone,RoundedCornerShape(22.dp)).padding(18.dp),verticalArrangement=Arrangement.spacedBy(13.dp)){
+ Column(Modifier.fillMaxWidth().background(tone,RoundedCornerShape(20.dp)).padding(17.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
   Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
-   Icon(icon,null,tint=Color(0xFF62646A),modifier=Modifier.size(21.dp))
-   Text(note.title,fontSize=19.sp,fontWeight=FontWeight.Bold,lineHeight=24.sp)
+   Icon(icon,null,tint=Color(0xFF62646A),modifier=Modifier.size(19.dp))
+   Text(note.title,fontSize=17.sp,fontWeight=FontWeight.Bold,lineHeight=23.sp)
   }
-  if(note.content.isNotBlank())Text(markdown(note.content),fontSize=16.sp,lineHeight=25.sp,color=Ink)
+  if(note.content.isNotBlank()){
+   val paragraphs=readableText(note.content).trim().split(Regex("""\n\s*\n"""))
+   Column(verticalArrangement=Arrangement.spacedBy(11.dp)){
+    paragraphs.filter{it.isNotBlank()}.forEach { paragraph ->
+     val lines=paragraph.lines()
+     if(lines.all{it.trimStart().startsWith("- ") || it.trimStart().startsWith("• ")}){
+      Column(verticalArrangement=Arrangement.spacedBy(7.dp)){
+       lines.forEach{line->
+        Row(horizontalArrangement=Arrangement.spacedBy(9.dp),verticalAlignment=Alignment.Top){
+         Text("•",fontSize=16.sp,color=Color(0xFF7D6E90))
+         Text(markdown(line.trimStart().drop(2)),fontSize=15.sp,lineHeight=23.sp,color=Ink,modifier=Modifier.weight(1f))
+        }
+       }
+      }
+     }else Text(markdown(paragraph),fontSize=15.sp,lineHeight=24.sp,color=Ink)
+    }
+   }
+  }
   note.examples.forEachIndexed { i,example ->
    if(i>0)HorizontalDivider(color=Color(0x1C5D6064),thickness=1.dp)
    Column(verticalArrangement=Arrangement.spacedBy(5.dp)){
