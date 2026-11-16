@@ -12,6 +12,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.*
 import org.json.JSONArray
 import org.json.JSONObject
@@ -55,11 +56,12 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun StudyshPractice(library:String,readProgress:()->String,saveProgress:(String)->Unit) {
  val questions=remember(library){questionsFromLibrary(library)}
+ val now=System.currentTimeMillis()
  var progressRaw by remember { mutableStateOf(readProgress()) }
  val progress=remember(progressRaw){runCatching{JSONObject(progressRaw)}.getOrElse{JSONObject()}}
  val due=questions.groupBy{it.key}.values.mapNotNull{group->
   val card=progress.optJSONObject(group.first().key)
-  if(StudyFsrs.dueAt(card)>System.currentTimeMillis())null
+  if(StudyFsrs.dueAt(card)>now)null
   else group[(card?.optInt("attempts",0)?:0)%group.size]
  }
  val practiced=questions.map{it.key}.distinct().count{progress.has(it)}
@@ -72,11 +74,13 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  var correctCount by remember { mutableIntStateOf(0) }
  var suggestedRating by remember { mutableIntStateOf(3) }
  var chosenRating by remember { mutableIntStateOf(3) }
+ var exerciseStartedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
  val session=remember(active,library){if(active)due else emptyList()}
  val current=session.getOrNull(cursor)
- fun resetAnswer(){choice="";tiles=emptyList();checked=false}
+ fun resetAnswer(){choice="";tiles=emptyList();checked=false;exerciseStartedAt=System.currentTimeMillis()}
  fun record(correct:Boolean,q:PracticeQuestion,rating:Int){
-  val next=StudyFsrs.review(progress.optJSONObject(q.key),rating)
+  val previous=StudyFsrs.migrateLegacy(progress.optJSONObject(q.key))
+  val next=StudyFsrs.review(previous,rating)
   progress.put(q.key,next)
   progressRaw=progress.toString()
   saveProgress(progressRaw)
@@ -142,7 +146,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
    val assembled=tiles.joinToString(" "){q.choices[it]}
    val submitted=if(q.type=="build")assembled else choice
    val correct=submitted.trim()==q.answer.trim()
-   Column(Modifier.fillMaxSize().padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+   Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
      IconButton(onClick={active=false}){Icon(Icons.Outlined.Close,"Leave session")}
      LinearProgressIndicator(progress={ (cursor+1).toFloat()/session.size },modifier=Modifier.weight(1f).height(8.dp),color=Lavender,trackColor=Color(0xFFEAE6EF))
@@ -173,7 +177,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
       q.choices.forEach{option->PracticeTile(option,choice==option,!checked){choice=option}}
      }
     }
-    Spacer(Modifier.weight(1f))
+    Spacer(Modifier.height(16.dp))
     if(checked){
      Surface(color=if(correct)Color(0xFFE7F5ED) else Color(0xFFFFF1E5),shape=RoundedCornerShape(18.dp)){
       Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
@@ -196,7 +200,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
      }
      Button(onClick={record(correct,q,chosenRating);cursor++;resetAnswer()},modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Continue",fontWeight=FontWeight.Bold)}
     }else{
-     Button(onClick={suggestedRating=if(correct)3 else 1;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Check",fontWeight=FontWeight.Bold)}
+     Button(onClick={suggestedRating=if(!correct)1 else if(System.currentTimeMillis()-exerciseStartedAt>45_000L)2 else 3;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Check",fontWeight=FontWeight.Bold)}
     }
    }
   }
