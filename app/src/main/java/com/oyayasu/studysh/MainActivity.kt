@@ -382,13 +382,17 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
   if(deleteEntry && selected!=null)AlertDialog(
    onDismissRequest={deleteEntry=false},
    title={Text("Delete this term?")},
-   text={Text("Remove \"${selected?.term}\" and its lesson from the library? This cannot be undone. Review history remains separately stored but will no longer appear in Practice.")},
+   text={Text("Remove \"${selected?.term}\" and its lesson from the library? This cannot be undone. Its practice history will also be removed. Export a backup first if you want to keep it.")},
    confirmButton={TextButton(onClick={
     val term=selected!!.term
     val arr=JSONArray()
     entries.filterNot{it.term==term}.forEach{arr.put(JSONObject(it.original))}
     library=JSONObject().put("schemaVersion","3.0").put("entries",arr).toString()
-    save(library);entries=parseEntries(library);selected=null;deleteEntry=false
+    save(library);entries=parseEntries(library)
+    val history=runCatching{JSONObject(readProgress())}.getOrElse{JSONObject()}
+    val keys=history.keys().asSequence().filter{it.startsWith(term.lowercase()+":")}.toList()
+    keys.forEach{history.remove(it)};saveProgress(history.toString())
+    selected=null;deleteEntry=false
    }){Text("Delete",color=Color(0xFFAE5A68))}},
    dismissButton={TextButton(onClick={deleteEntry=false}){Text("Cancel")}}
   )
@@ -413,7 +417,14 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      val updated=JSONArray()
      entries.forEach{entry->updated.put(if(entry.term==old.term)edited else JSONObject(entry.original))}
      library=JSONObject().put("schemaVersion","3.0").put("entries",updated).toString()
-     save(library);entries=parseEntries(library);selected=entries.find{it.term==term};editEntry=false
+     save(library);entries=parseEntries(library)
+     if(!term.equals(old.term,true)){
+      val history=runCatching{JSONObject(readProgress())}.getOrElse{JSONObject()}
+      val keys=history.keys().asSequence().filter{it.startsWith(old.term.lowercase()+":")}.toList()
+      keys.forEach{key->val value=history.optJSONObject(key);if(value!=null){history.put(term.lowercase()+key.substring(old.term.length),value);history.remove(key)}}
+      saveProgress(history.toString())
+     }
+     selected=entries.find{it.term==term};editEntry=false
     }catch(e:Exception){editorError=e.message?:"Invalid JSON"}
    }){Text("Save")}},
    dismissButton={TextButton(onClick={editEntry=false}){Text("Cancel")}}
