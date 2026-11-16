@@ -36,9 +36,9 @@ internal object StudyFsrs {
   val nextS=when {
    t<1 -> {
     val candidate=s*exp(w[17]*(g-3+w[18]))*s.pow(-w[19])
-    if(g>=3)max(s,candidate) else candidate
+    if(g>=2)max(s,candidate) else candidate
    }
-   g==1 -> min(s,w[11]*d.pow(-w[12])*((s+1).pow(w[13])-1)*exp((1-r)*w[14]))
+   g==1 -> min(s,w[11]*nextD.pow(-w[12])*((s+1).pow(w[13])-1)*exp((1-r)*w[14]))
    else -> {
     val multiplier=exp(w[8])*(11-nextD)*s.pow(-w[9])*(exp((1-r)*w[10])-1)*
      (if(g==2)w[15] else 1.0)*(if(g==4)w[16] else 1.0)
@@ -57,58 +57,80 @@ internal object StudyFsrs {
   val card=if(previous==null)JSONObject() else JSONObject(previous.toString())
   val state=card.optString("state","new")
   val last=card.optLong("lastAt",0L)
-  val t=if(last<=0)0.0 else ((now-last).coerceAtLeast(0L).toDouble()/DAY)
+  val elapsed=if(last<=0)0.0 else ((now-last).coerceAtLeast(0L).toDouble()/DAY)
   val oldS=card.optDouble("stability",0.0)
   val oldD=card.optDouble("difficulty",0.0)
+  val hasMemory=oldS>0.0 && oldD in 1.0..10.0
   var nextState="review"
   var step=0
   var stability=oldS
   var diff=oldD
   var due=now+DAY
-  when(state){
-   "new" -> {
-    val initial=fresh(rating);stability=initial.first;diff=initial.second
-    when(rating){
-     1->{nextState="learning";step=0;due=now+60_000L}
-     2->{nextState="learning";step=0;due=now+600_000L}
-     3->{nextState="learning";step=1;due=now+600_000L}
-     else->{due=now+interval(stability)}
-    }
+  val isLearning=state=="learning" || state=="relearning"
+  val wasRelearning=state=="relearning"
+  if(state=="new" || (!hasMemory && !isLearning)){
+   val initial=fresh(rating)
+   stability=initial.first;diff=initial.second
+   when(rating){
+    1->{nextState="learning";step=0;due=now+60_000L}
+    2->{nextState="learning";step=0;due=now+600_000L}
+    3->{nextState="learning";step=1;due=now+600_000L}
+    4->due=now+interval(stability)
    }
-   "learning" -> {
-    val initial=fresh(rating);stability=initial.first;diff=initial.second
-    val oldStep=card.optInt("step",0)
-    when(rating){
-     1->{nextState="learning";step=0;due=now+60_000L}
-     2->{nextState="learning";step=oldStep;due=now+600_000L}
-     3->if(oldStep==0){nextState="learning";step=1;due=now+600_000L}
-         else due=now+interval(stability)
-     4->due=now+interval(stability)
-    }
+  }else if(isLearning){
+   // Each learning attempt is a memory observation, including same-day repetitions.
+   // A lapse enters relearning; subsequent short steps do not repeatedly count a new lapse.
+   val revised=if(hasMemory)updated(oldS,oldD,elapsed,rating) else fresh(rating)
+   stability=revised.first;diff=revised.second
+   val oldStep=card.optInt("step",0)
+   when(rating){
+    1->{nextState=if(wasRelearning)"relearning" else "learning";step=0;due=now+60_000L}
+    2->{nextState=if(wasRelearning)"relearning" else "learning";step=oldStep;due=now+600_000L}
+    3->if(oldStep==0 && !wasRelearning){
+     nextState="learning";step=1;due=now+600_000L
+    }else due=now+interval(stability)
+    4->due=now+interval(stability)
    }
-   "relearning" -> {
-    if(oldS>0 && oldD>0){val updated=updated(oldS,oldD,t,rating);stability=updated.first;diff=updated.second}
-    else {val initial=fresh(rating);stability=initial.first;diff=initial.second}
-    if(rating==1){nextState="relearning";due=now+600_000L}
-    else if(rating==2){nextState="relearning";due=now+600_000L}
-    else due=now+interval(stability)
-   }
-   else -> {
-    if(oldS>0 && oldD>0){val updated=updated(oldS,oldD,t,rating);stability=updated.first;diff=updated.second}
-    else {val initial=fresh(rating);stability=initial.first;diff=initial.second}
-    if(rating==1){nextState="relearning";due=now+600_000L}
-    else due=now+interval(stability)
-   }
+  }else{
+   val revised=updated(oldS,oldD,elapsed,rating)
+   stability=revised.first;diff=revised.second
+   if(rating==1){nextState="relearning";step=0;due=now+600_000L}
+   else due=now+interval(stability)
+  }
+  // Safeguard against invalid clocks or invalid persisted values.
+  if(!stability.isFinite() || stability<=0.0 || !diff.isFinite()){
+   val fallback=fresh(rating)
+   stability=fallback.first;diff=fallback.second
+   due=now+interval(stability);nextState="review";step=0
   }
   val logs=card.optJSONArray("reviews")?:JSONArray()
-  logs.put(JSONObject().put("at",now).put("rating",rating).put("elapsedDays",t)
-   .put("stability",stability).put("difficulty",diff).put("dueAt",due))
+  logs.put(JSONObject().put("at",now).put("rating",rating).put("elapsedDays",elapsed)
+   .put("stability",stability).put("difficulty",diff).put("dueAt",due)
+   .put("state",nextState))
   card.put("algorithm","fsrs-6").put("state",nextState).put("step",step)
    .put("stability",stability).put("difficulty",diff).put("lastAt",now)
    .put("dueAt",due).put("reviews",logs)
    .put("attempts",card.optInt("attempts",0)+1)
    .put("correct",card.optInt("correct",0)+(if(rating==1)0 else 1))
   return card
+ }
+ /** Converts old fixed-interval cards conservatively without inventing FSRS reviews. */
+ fun migrateLegacy(previous:JSONObject?,now:Long=System.currentTimeMillis()):JSONObject?{
+  if(previous==null)return null
+  if(previous.optString("algorithm")=="fsrs-6")return previous
+  val attempts=previous.optInt("attempts",0)
+  if(attempts<=0)return previous
+  val streak=previous.optInt("streak",0)
+  val grade=if(streak==0)1 else if(streak>=3)4 else 3
+  val initial=fresh(grade)
+  val migrated=JSONObject(previous.toString())
+  migrated.put("algorithm","fsrs-6").put("state",if(streak==0)"relearning" else "review")
+   .put("step",0).put("stability",initial.first).put("difficulty",initial.second)
+  val oldDue=previous.optLong("dueAt",now)
+  migrated.put("dueAt",oldDue.coerceAtLeast(0L))
+  migrated.put("reviews",previous.optJSONArray("reviews")?:JSONArray())
+  migrated.put("migration","legacy-estimate")
+  return migrated
  }
  fun dueAt(card:JSONObject?):Long=card?.optLong("dueAt",0L)?:0L
  fun retention(card:JSONObject?,now:Long=System.currentTimeMillis()):Double? {
