@@ -192,6 +192,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  var deleteEntry by remember { mutableStateOf(false) }
  var entryDraft by remember { mutableStateOf("") }
  var editorError by remember { mutableStateOf("") }
+ var advancedEdit by remember { mutableStateOf(false) }
  val clipboard=LocalClipboardManager.current
  val context=androidx.compose.ui.platform.LocalContext.current
  val backupExporter=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
@@ -277,7 +278,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      item {
       Row(verticalAlignment=Alignment.CenterVertically){
        Column(Modifier.weight(1f)){Text(item.term,fontSize=30.sp,fontWeight=FontWeight.Bold);if(item.pronunciation.isNotBlank() || item.partOfSpeech.isNotBlank())Text(listOf(item.pronunciation,item.partOfSpeech).filter{it.isNotBlank()}.joinToString(" · "),color=Muted,fontSize=15.sp)}
-       IconButton(onClick={entryDraft=JSONObject(item.original).toString(2);editorError="";editEntry=true}){Icon(Icons.Outlined.Edit,"Edit term")}
+       IconButton(onClick={entryDraft=JSONObject(item.original).toString(2);editorError="";advancedEdit=false;editEntry=true}){Icon(Icons.Outlined.Edit,"Edit term")}
        IconButton(onClick={deleteEntry=true}){Icon(Icons.Outlined.DeleteOutline,"Delete term",tint=Color(0xFFAE5A68))}
       }
      }
@@ -401,8 +402,19 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    title={Text("Edit term")},
    text={
     Column(Modifier.heightIn(max=480.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
-     Text("Edit the lesson JSON, including context, explanations, and exercises. Progress is preserved when the term and skill IDs remain unchanged.",fontSize=13.sp,color=Muted)
-     OutlinedTextField(value=entryDraft,onValueChange={entryDraft=it;editorError=""},label={Text("Entry JSON")},modifier=Modifier.fillMaxWidth(),minLines=10,maxLines=22,textStyle=androidx.compose.ui.text.TextStyle(fontSize=12.sp,lineHeight=17.sp))
+     Text("Edit basic details below, or open Advanced to edit explanations and exercises. Keep skill IDs unchanged to preserve review progress.",fontSize=13.sp,color=Muted)
+     val obj=runCatching{JSONObject(entryDraft)}.getOrNull()
+     if(!advancedEdit && obj!=null){
+      listOf("term" to "Term","pronunciation" to "Pronunciation","partOfSpeech" to "Part of speech",
+       "context" to "Context","originalSentence" to "Original sentence","specificQuestion" to "Specific question").forEach{(key,label)->
+       OutlinedTextField(value=obj.optString(key),onValueChange={value->
+        entryDraft=JSONObject(entryDraft).put(key,value).toString(2)
+       },label={Text(label)},modifier=Modifier.fillMaxWidth(),maxLines=3)
+      }
+     }else{
+      OutlinedTextField(value=entryDraft,onValueChange={entryDraft=it;editorError=""},label={Text("Entry JSON")},modifier=Modifier.fillMaxWidth(),minLines=10,maxLines=22,textStyle=androidx.compose.ui.text.TextStyle(fontSize=12.sp,lineHeight=17.sp))
+     }
+     TextButton(onClick={advancedEdit=!advancedEdit}){Text(if(advancedEdit)"Basic fields" else "Advanced · edit full lesson JSON")}
      if(editorError.isNotBlank())Text(editorError,color=Color(0xFFAE5A68),fontSize=12.sp)
     }
    },
