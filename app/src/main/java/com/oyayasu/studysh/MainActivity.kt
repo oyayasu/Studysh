@@ -40,7 +40,9 @@ class MainActivity:ComponentActivity(){
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
   setContent { StudyshApp(
    read={getPreferences(MODE_PRIVATE).getString("library","{\"schemaVersion\":\"1.0\",\"entries\":[]}")?:""},
-   save={getPreferences(MODE_PRIVATE).edit().putString("library",it).apply()}
+   save={getPreferences(MODE_PRIVATE).edit().putString("library",it).apply()},
+   readProgress={getPreferences(MODE_PRIVATE).getString("practice_progress","{}")?:"{}"},
+   saveProgress={getPreferences(MODE_PRIVATE).edit().putString("practice_progress",it).apply()}
   ) }
  }
 }
@@ -171,7 +173,7 @@ Use schemaVersion "3.0", with this example as a STRUCTURAL MODEL, not a mandator
 For blocks, titles are free and sections are optional. Style colors: purple=concept, blue=patterns, green=examples, yellow=nuance, rose=caveat, plain=neutral. Do not repeat the structured knowledge data verbatim in every block. Knowledge is machine-readable metadata; blocks are the readable lesson. Each exercise must refer to a defined skillId. Every answer must be exactly reconstructible from options or tiles. Keep JSON compact enough to finish ALL entries; prefer fewer strong exercises and precise explanations over excessive volume. Use standard JSON escaping only. No trailing commas, no Markdown fences, no incomplete entries.
 """.trimIndent()
 }
-@Composable private fun StudyshApp(read:()->String,save:(String)->Unit){
+@Composable private fun StudyshApp(read:()->String,save:(String)->Unit,readProgress:()->String,saveProgress:(String)->Unit){
  var library by remember { mutableStateOf(read()) }
  var entries by remember { mutableStateOf(runCatching { parseEntries(library) }.getOrDefault(emptyList())) }
  var page by remember { mutableStateOf(1) }
@@ -314,6 +316,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
      }
+     2->Box(Modifier.weight(1f)){StudyshPractice(library,readProgress,saveProgress)}
      else->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
       item{
        Row(verticalAlignment=Alignment.CenterVertically){Text("Library",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));IconButton(onClick={compact=!compact}){Icon(Icons.Outlined.Tune,"Layout")}}
@@ -346,6 +349,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     NavigationBar(containerColor=Color(0xFFFAF7FD),tonalElevation=0.dp){
      NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.Home,null)},label={Text("Home")})
      NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text("Create")})
+     NavigationBarItem(selected=page==2,onClick={page=2},icon={Icon(Icons.Outlined.Extension,null)},label={Text("Practice")})
     }
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp,maxLines=4,overflow=TextOverflow.Ellipsis)
