@@ -33,7 +33,7 @@ private val Ink=Color(0xFF17191C)
 private val Muted=Color(0xFF74777D)
 private val Canvas=Color(0xFFFCFBFE)
 private val Pastels=listOf(Color(0xFFF9F0E4),Color(0xFFEAF1FB),Color(0xFFE7F5EE),Color(0xFFF5ECF5),Color(0xFFFFF3DF),Color(0xFFEBF2F3))
-data class StudyQuery(val term:String="",val context:String="",val sentence:String="")
+data class StudyQuery(val term:String="",val context:String="",val sentence:String="",val doubt:String="")
 data class Note(val title:String,val type:String,val content:String,val examples:List<Pair<String,String>> = emptyList())
 data class Entry(val term:String,val pronunciation:String,val status:String,val notes:List<Note>,val original:String,val partOfSpeech:String="",val language:String="English")
 class MainActivity:ComponentActivity(){
@@ -111,7 +111,7 @@ private fun prompt(queries:List<StudyQuery>):String {
  val requested=JSONArray()
  queries.filter{it.term.isNotBlank()}.forEach { q ->
   requested.put(JSONObject().put("term",q.term.trim()).put("context",q.context.trim())
-   .put("originalSentence",q.sentence.trim()))
+   .put("originalSentence",q.sentence.trim()).put("specificQuestion",q.doubt.trim()))
  }
  return """
 ROLE
@@ -122,7 +122,7 @@ ${requested.toString(2)}
 
 PEDAGOGY — follow all principles, but select only relevant material per term:
 1. Start with a concise CENTRAL MENTAL MODEL in Brazilian Portuguese: what the term communicates, implies, emphasizes, and how its meanings relate. Do not reduce it to a memorized translation. Separate truly unrelated senses rather than forcing a false common definition.
-2. If a context is provided, explain that sense FIRST and explain its role in the original sentence if provided. Context is a freely written subject or situation, not a media category, and is a STARTING POINT, never a restriction. Expand to other useful senses and ordinary contexts. If parentheses mark part of an expression, prioritize that part within the whole construction. If the source is incomplete, do not invent intent; acknowledge genuine ambiguity only where needed.
+2. If a context is provided, explain that sense FIRST and explain its role in the original sentence if provided. Context is a freely written subject or situation, not a media category, and is a STARTING POINT, never a restriction. Expand to other useful senses and ordinary contexts. If a specificQuestion is provided, answer it directly while still teaching the necessary foundations. If parentheses mark part of an expression, prioritize that part within the whole construction. If the source is incomplete, do not invent intent; acknowledge genuine ambiguity only where needed.
 3. Compare near alternatives ONLY when it changes interpretation or word choice. Explain differences in connotation, intensity, register, frequency, naturalness, syntax, and Portuguese interference. Do not invent hard distinctions where words overlap.
 4. Teach productive constructions explicitly: TERM + preposition/complement/clause, what can fill each slot, important restrictions, related forms, derived constructions, and typical collocations. Distinguish productive grammar from fixed phrases and typical word partnerships. Cover the important patterns without endless interchangeable examples.
 5. Give genuinely natural American English sentences paired with idiomatic Brazilian Portuguese. Each example must add something: a basic use, variation, nuance, another context, or restriction. Explain significant peculiarities immediately. Avoid contrived sentences.
@@ -303,6 +303,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
         OutlinedTextField(value=query.term,onValueChange={v->fields=fields.mapIndexed{j,q->if(i==j)q.copy(term=v) else q}},placeholder={Text("Word or expression")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(14.dp))
         OutlinedTextField(value=query.context,onValueChange={v->fields=fields.mapIndexed{j,q->if(i==j)q.copy(context=v) else q}},label={Text("Context (optional)")},placeholder={Text("e.g. Art — anatomy, perspective, composition")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4,shape=RoundedCornerShape(14.dp))
         OutlinedTextField(value=query.sentence,onValueChange={v->fields=fields.mapIndexed{j,q->if(i==j)q.copy(sentence=v) else q}},label={Text("Original sentence (optional)")},placeholder={Text("Paste the sentence where you found it")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4,shape=RoundedCornerShape(14.dp))
+        OutlinedTextField(value=query.doubt,onValueChange={v->fields=fields.mapIndexed{j,q->if(i==j)q.copy(doubt=v) else q}},label={Text("Specific question (optional)")},placeholder={Text("What exactly would you like to understand?")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4,shape=RoundedCornerShape(14.dp))
        }
       }
       item{
