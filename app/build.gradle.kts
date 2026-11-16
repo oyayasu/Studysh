@@ -10,8 +10,8 @@ android {
         applicationId = "com.oyayasu.studysh"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.5.0"
+        versionCode = 6
+        versionName = "0.6.0"
     }
     buildFeatures { compose = true }
     compileOptions { sourceCompatibility = JavaVersion.VERSION_17; targetCompatibility = JavaVersion.VERSION_17 }
@@ -24,4 +24,6 @@ dependencies {
     implementation("androidx.compose.material:material-icons-extended")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
+    testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
 }
