@@ -200,7 +200,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     val backup=JSONObject().put("format","studysh-backup-1").put("library",JSONObject(library))
      .put("practiceProgress",JSONObject(readProgress()))
     context.contentResolver.openOutputStream(it)?.bufferedWriter(Charsets.UTF_8)?.use{writer->writer.write(backup.toString(2))}
-     ?:error("Unable to write backup")
+     ?:throw IllegalStateException("Unable to write backup")
    }.onSuccess{error="Backup exported successfully."}
     .onFailure{error="Backup failed: "+(it.message?:"Unable to write file")}
   }
