@@ -33,6 +33,7 @@ private val Ink=Color(0xFF17191C)
 private val Muted=Color(0xFF74777D)
 private val Canvas=Color(0xFFFCFBFE)
 private val Pastels=listOf(Color(0xFFF9F0E4),Color(0xFFEAF1FB),Color(0xFFE7F5EE),Color(0xFFF5ECF5),Color(0xFFFFF3DF),Color(0xFFEBF2F3))
+data class StudyQuery(val term:String="",val context:String="",val sentence:String="")
 data class Note(val title:String,val type:String,val content:String,val examples:List<Pair<String,String>> = emptyList())
 data class Entry(val term:String,val pronunciation:String,val status:String,val notes:List<Note>,val original:String,val partOfSpeech:String="",val language:String="English")
 class MainActivity:ComponentActivity(){
@@ -106,18 +107,28 @@ private fun parseEntries(raw:String):List<Entry>{
   Entry(obj.optString("term"),obj.optString("pronunciation"),obj.optString("status",""),notes,obj.toString(),obj.optString("partOfSpeech"),obj.optString("language","English"))
  }.filter { it.term.isNotBlank() }
 }
-private fun prompt(terms:List<String>):String = """
-You are an expert teacher of natural American English for a Brazilian Portuguese speaker.
-Analyze these terms independently: ${terms.joinToString("; ")}.
-Your job is to give a personalized, natural, bilingual explanation that helps the student understand and USE each term, not an encyclopedia or a rigid dictionary template.
-Write explanations primarily in Brazilian Portuguese. Keep English phrases, constructions, and natural example sentences in English, followed by their Brazilian Portuguese interpretation.
-For each term, choose ONLY the content that term genuinely needs: central meaning, grammatical patterns, natural examples, comparisons, register, unusual nuances, caveats, incomplete expressions, or context-dependent interpretations, as appropriate. Do not force categories, counts, or repeated sections. Favor clear concise paragraphs and precise insights over volume.
-If a query contains parentheses, prioritize the expression inside them. If a phrase is incomplete or ambiguous, explain what can be inferred and what cannot; never invent the author's intent or a missing context. Request the original sentence when needed, inside a natural explanatory block. Do not add uncertainty warnings without a real reason.
-Give examples only when they clarify usage. Explain unnatural or humorous usage when instructive. No quizzes, exercises, progress labels, filler, or motivational text.
-Return ONLY a compact, valid JSON object, without Markdown fences, with this structure:
-{"version":2,"entries":[{"term":"...","language":"English","pronunciation":"/IPA/ (only if confident)","partOfSpeech":"verb (only if relevant)","blocks":[{"style":"purple","title":"Free, natural title in Portuguese","text":"Markdown with **bold** and *italic*"},{"style":"green","title":"Exemplos naturais","examples":[{"en":"English example.","pt":"Interpretação natural em português."}]}]}]}
-Each entry may have ANY number of blocks, any titles, and any combination of text and examples. Use style values: purple (concept/explanation), blue (grammar/constructions), green (examples/comparisons), yellow (nuances/observations), rose (caveats/ambiguity), or plain (long-form text). Colors are visual hints, NOT required categories. Omit fields that do not apply. Use simple Markdown **bold** and *italic* within text; never put Markdown syntax in titles. Use explicit examples arrays for paired translations. Make the JSON as short as reasonably possible while preserving meaningful distinctions. Always include ALL requested terms in a single valid JSON document. Keep explanations concise enough to fit the response. If output length is a concern, shorten blocks rather than omit terms. Do not escape Markdown asterisks, square brackets or underscores; use normal JSON escaping only.
+private fun prompt(queries:List<StudyQuery>):String {
+ val requested=JSONArray()
+ queries.filter{it.term.isNotBlank()}.forEach{q->requested.put(JSONObject().put("term",q.term.trim()).put("context",q.context.trim()).put("originalSentence",q.sentence.trim()))}
+ return """
+You are a highly skilled teacher of natural American English for a Brazilian Portuguese speaker. Your job is to help the learner genuinely UNDERSTAND and USE each term, not memorize a dictionary or read an encyclopedia.
+REQUESTS (each context and original sentence belongs ONLY to its own term):
+${requested.toString(2)}
+
+PEDAGOGY:
+Explain mainly in clear Brazilian Portuguese. Keep target English expressions, reusable constructions, collocations and natural American English examples in English, paired with idiomatic Brazilian Portuguese interpretations.
+Start with a central mental model or meaning, not just a translation. If a context is provided, explain that sense FIRST, then expand to other relevant contexts, including ordinary conversations. Context is a free-form subject/situation, NOT a media type and NOT a limit on learning.
+If an original sentence is given, explain the term's function in it. If the original is missing or incomplete, do not invent the author's intent; identify genuine ambiguity and explain what additional context would clarify it. Do not add pointless uncertainty warnings.
+Teach the most useful reusable grammatical patterns, especially which prepositions, complements, verbs, nouns, and clauses normally appear before or after the term. Explain relevant restrictions and why patterns work. Include collocations, related forms and derived constructions when they improve independent use.
+Explain nuances: meaning, intensity, connotation, register, contrasts with near synonyms, contexts in which a phrase sounds unnatural, and important differences from literal Portuguese. Use illustrative natural examples, progressing from simple to contextual when valuable.
+Each term is DIFFERENT. Choose ONLY the insights it needs. Do not force fixed sections, minimum numbers of examples, quizzes, exercises, progress labels, trivia, or repeated explanations.
+Write like an excellent personalized ChatGPT explanation: short coherent paragraphs, concise descriptive headings, **bold** for essential patterns and insights, *italic* for English terms in running text, lists only when helpful. Make the explanation deep in insight but economical in words. Each point should build on the previous one. Separate examples from their translations visually.
+
+OUTPUT: Return ONLY a single complete valid JSON object, with no code fences:
+{"version":2,"entries":[{"term":"strive","language":"English","pronunciation":"/straɪv/","partOfSpeech":"verb","context":"Art — drawing","originalSentence":"","blocks":[{"style":"purple","title":"Ideia central","text":"Clear **bold** and *italic* Markdown."},{"style":"blue","title":"Construções importantes","text":"**strive to + verb** — ..."},{"style":"green","title":"Exemplos naturais","examples":[{"en":"Artists strive to improve.","pt":"Artistas se empenham em melhorar."}]},{"style":"yellow","title":"Nuance importante","text":"..."}]}]}
+Each entry has a flexible number of blocks with FREE titles. Blocks may contain text, examples, or both. Visual styles are hints, NOT required sections: purple=concept, blue=patterns, green=examples, yellow=nuance, rose=ambiguity/caveat, plain=neutral. Order blocks for clear learning, not by color. Keep paragraphs and cards reasonably short without sacrificing necessary insights. Use proper JSON escaping only: NEVER escape Markdown asterisks, underscores, or JSON array brackets with backslashes. Include EVERY requested term; if space is limited remove redundancy, not terms. Never output partial JSON.
 """.trimIndent()
+}
 @Composable private fun StudyshApp(read:()->String,save:(String)->Unit){
  var library by remember { mutableStateOf(read()) }
  var entries by remember { mutableStateOf(runCatching { parseEntries(library) }.getOrDefault(emptyList())) }
@@ -126,7 +137,7 @@ Each entry may have ANY number of blocks, any titles, and any combination of tex
  var compact by remember { mutableStateOf(true) }
  var selected by remember { mutableStateOf<Entry?>(null) }
  var search by remember { mutableStateOf("") }
- var fields by remember { mutableStateOf(listOf("")) }
+ var fields by remember { mutableStateOf(listOf(StudyQuery())) }
  var error by remember { mutableStateOf("") }
  var jsonText by remember { mutableStateOf("") }
  var showPaste by remember { mutableStateOf(false) }
@@ -230,17 +241,23 @@ Each entry may have ANY number of blocks, any titles, and any combination of tex
    }else{
     when(page){
      0->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-      item{Text("New search",fontSize=27.sp,fontWeight=FontWeight.Bold);Text("Explore up to five expressions.",color=Muted)}
+      item{Text("New search",fontSize=27.sp,fontWeight=FontWeight.Bold);Text("Begin with your context, then explore natural usage elsewhere.",color=Muted,fontSize=14.sp,lineHeight=21.sp)}
       items(fields.size){i->
-       Row(verticalAlignment=Alignment.CenterVertically){
-        OutlinedTextField(value=fields[i],onValueChange={v->fields=fields.mapIndexed{j,s->if(i==j)v else s}},label={Text("Term ${i+1}")},singleLine=true,modifier=Modifier.weight(1f),shape=RoundedCornerShape(16.dp))
-        if(fields.size>1)IconButton(onClick={fields=fields.filterIndexed{j,_->i!=j}}){Icon(Icons.Outlined.Close,"Remove")}
+       val query=fields[i]
+       Column(Modifier.fillMaxWidth().background(Color.White,RoundedCornerShape(22.dp)).border(1.dp,Color(0xFFE9E4ED),RoundedCornerShape(22.dp)).padding(14.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
+        Row(verticalAlignment=Alignment.CenterVertically){
+         Text("Term ${i+1}",fontWeight=FontWeight.SemiBold,fontSize=16.sp,modifier=Modifier.weight(1f))
+         if(fields.size>1)IconButton(onClick={fields=fields.filterIndexed{j,_->i!=j}}){Icon(Icons.Outlined.Close,"Remove term")}
+        }
+        OutlinedTextField(value=query.term,onValueChange={v->fields=fields.mapIndexed{j,q->if(i==j)q.copy(term=v) else q}},placeholder={Text("Word or expression")},singleLine=true,modifier=Modifier.fillMaxWidth(),shape=RoundedCornerShape(14.dp))
+        OutlinedTextField(value=query.context,onValueChange={v->fields=fields.mapIndexed{j,q->if(i==j)q.copy(context=v) else q}},label={Text("Context (optional)")},placeholder={Text("e.g. Art — anatomy, perspective, composition")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4,shape=RoundedCornerShape(14.dp))
+        OutlinedTextField(value=query.sentence,onValueChange={v->fields=fields.mapIndexed{j,q->if(i==j)q.copy(sentence=v) else q}},label={Text("Original sentence (optional)")},placeholder={Text("Paste the sentence where you found it")},modifier=Modifier.fillMaxWidth(),minLines=2,maxLines=4,shape=RoundedCornerShape(14.dp))
        }
       }
       item{
-       OutlinedButton(onClick={fields=fields+""},enabled=fields.size<5,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Add,null);Text(" Add term")}
+       OutlinedButton(onClick={fields=fields+StudyQuery()},enabled=fields.size<5,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Add,null);Text(" Add term")}
        Spacer(Modifier.height(16.dp))
-       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.map{it.trim()}.filter{it.isNotEmpty()})));error="Prompt copied to clipboard."},enabled=fields.any{it.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
+       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()})));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
        Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
