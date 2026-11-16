@@ -194,6 +194,17 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  var editorError by remember { mutableStateOf("") }
  val clipboard=LocalClipboardManager.current
  val context=androidx.compose.ui.platform.LocalContext.current
+ val backupExporter=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
+  uri?.let{
+   runCatching{
+    val backup=JSONObject().put("format","studysh-backup-1").put("library",JSONObject(library))
+     .put("practiceProgress",JSONObject(readProgress()))
+    context.contentResolver.openOutputStream(it)?.bufferedWriter(Charsets.UTF_8)?.use{writer->writer.write(backup.toString(2))}
+     ?:error("Unable to write backup")
+   }.onSuccess{error="Backup exported successfully."}
+    .onFailure{error="Backup failed: "+(it.message?:"Unable to write file")}
+  }
+ }
  val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){ uri ->
   uri?.let { runCatching { context.contentResolver.openInputStream(it)!!.bufferedReader(Charsets.UTF_8).use { reader -> reader.readText() } }.onSuccess { jsonText=it;importSource="file";showPaste=true;error="" }.onFailure { error=it.message?:"Unable to read file" } }
  }
@@ -205,6 +216,14 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     throw IllegalArgumentException("JSON is incomplete or malformed. No terms were imported. Please import a complete .json file or copy the entire response.")
    }
    val partial=false
+   if(root.optString("format")=="studysh-backup-1"){
+    val restored=root.optJSONObject("library")?:throw IllegalArgumentException("Backup is missing the library.")
+    val restoredProgress=root.optJSONObject("practiceProgress")?:JSONObject()
+    require(restored.optJSONArray("entries")!=null){"Backup is missing entries."}
+    val parsed=parseEntries(restored.toString())
+    library=restored.toString();save(library);entries=parsed
+    saveProgress(restoredProgress.toString());showPaste=false;page=1;error="Backup restored: ${parsed.size} terms and review history.";return
+   }
    if(root.optString("schemaVersion")!="1.0" && root.optInt("version")!=2 && root.optString("schemaVersion")!="3.0") throw IllegalArgumentException("Unsupported JSON format. Expected Studysh v3, v2 or legacy v1.")
    if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
    val incoming=parseEntries(root.toString())
@@ -245,7 +264,8 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     Icon(Icons.Outlined.Layers,null,tint=Color(0xFF8C60CB),modifier=Modifier.size(28.dp))
     Spacer(Modifier.width(10.dp))
     Text("Studysh",fontSize=27.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
-    IconButton(onClick={picker.launch("application/json")}){Icon(Icons.Outlined.FileUpload,"Import JSON")}
+    IconButton(onClick={backupExporter.launch("studysh-backup.json")}){Icon(Icons.Outlined.SaveAlt,"Export backup")}
+    IconButton(onClick={picker.launch("*/*")}){Icon(Icons.Outlined.FileUpload,"Import JSON or backup")}
    }
    if(selected!=null){
     val item=selected!!
