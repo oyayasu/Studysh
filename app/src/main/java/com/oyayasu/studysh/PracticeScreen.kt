@@ -42,7 +42,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
    if(options.isEmpty() || answer.isBlank())continue
    if(type!="build" && answer !in options)continue
    questions.add(PracticeQuestion(
-    key=term.lowercase()+":"+ex.optString("id","question-$j"),term=term,type=type,
+    key=term.lowercase()+":"+ex.optString("skillId").ifBlank{ex.optString("id","question-$j")},term=term,type=type,
     instruction=ex.optString("instruction",if(type=="build")"Build the sentence" else "Complete the sentence"),
     sentence=ex.optString("sentence"),prompt=ex.optString("ptPrompt"),
     choices=options,answer=answer,explanation=ex.optString("explanation"),skill=ex.optString("skillId")
@@ -57,8 +57,12 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  val questions=remember(library){questionsFromLibrary(library)}
  var progressRaw by remember { mutableStateOf(readProgress()) }
  val progress=remember(progressRaw){runCatching{JSONObject(progressRaw)}.getOrElse{JSONObject()}}
- val due=questions.filter{q->StudyFsrs.dueAt(progress.optJSONObject(q.key)) <= System.currentTimeMillis()}
- val practiced=questions.count{progress.has(it.key)}
+ val due=questions.groupBy{it.key}.values.mapNotNull{group->
+  val card=progress.optJSONObject(group.first().key)
+  if(StudyFsrs.dueAt(card)>System.currentTimeMillis())null
+  else group[(card?.optInt("attempts",0)?:0)%group.size]
+ }
+ val practiced=questions.map{it.key}.distinct().count{progress.has(it)}
  var active by remember { mutableStateOf(false) }
  var cursor by remember { mutableIntStateOf(0) }
  var choice by remember { mutableStateOf("") }
@@ -103,7 +107,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
     item {
      Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){
       PracticeStat("${due.size}","Due now",Modifier.weight(1f))
-      PracticeStat("${questions.size}","Activities",Modifier.weight(1f))
+      PracticeStat("${questions.map{it.key}.distinct().size}","Skills",Modifier.weight(1f))
       PracticeStat("$practiced","Practiced",Modifier.weight(1f))
      }
     }
