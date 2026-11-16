@@ -188,6 +188,10 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  var importSource by remember { mutableStateOf("paste") }
  var editNote by remember { mutableStateOf(false) }
  var customNote by remember { mutableStateOf("") }
+ var editEntry by remember { mutableStateOf(false) }
+ var deleteEntry by remember { mutableStateOf(false) }
+ var entryDraft by remember { mutableStateOf("") }
+ var editorError by remember { mutableStateOf("") }
  val clipboard=LocalClipboardManager.current
  val context=androidx.compose.ui.platform.LocalContext.current
  val picker=rememberLauncherForActivityResult(ActivityResultContracts.GetContent()){ uri ->
@@ -253,7 +257,8 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      item {
       Row(verticalAlignment=Alignment.CenterVertically){
        Column(Modifier.weight(1f)){Text(item.term,fontSize=30.sp,fontWeight=FontWeight.Bold);if(item.pronunciation.isNotBlank() || item.partOfSpeech.isNotBlank())Text(listOf(item.pronunciation,item.partOfSpeech).filter{it.isNotBlank()}.joinToString(" · "),color=Muted,fontSize=15.sp)}
-       Icon(Icons.Outlined.BookmarkBorder,"Bookmark",tint=Muted)
+       IconButton(onClick={entryDraft=JSONObject(item.original).toString(2);editorError="";editEntry=true}){Icon(Icons.Outlined.Edit,"Edit term")}
+       IconButton(onClick={deleteEntry=true}){Icon(Icons.Outlined.DeleteOutline,"Delete term",tint=Color(0xFFAE5A68))}
       }
      }
      val studyContext=runCatching{JSONObject(item.original).optString("context")}.getOrDefault("")
@@ -354,6 +359,45 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp,maxLines=4,overflow=TextOverflow.Ellipsis)
   }
+  if(deleteEntry && selected!=null)AlertDialog(
+   onDismissRequest={deleteEntry=false},
+   title={Text("Delete this term?")},
+   text={Text("Remove \"${selected?.term}\" and its lesson from the library? This cannot be undone. Review history remains separately stored but will no longer appear in Practice.")},
+   confirmButton={TextButton(onClick={
+    val term=selected!!.term
+    val arr=JSONArray()
+    entries.filterNot{it.term==term}.forEach{arr.put(JSONObject(it.original))}
+    library=JSONObject().put("schemaVersion","3.0").put("entries",arr).toString()
+    save(library);entries=parseEntries(library);selected=null;deleteEntry=false
+   }){Text("Delete",color=Color(0xFFAE5A68))}},
+   dismissButton={TextButton(onClick={deleteEntry=false}){Text("Cancel")}}
+  )
+  if(editEntry && selected!=null)AlertDialog(
+   onDismissRequest={editEntry=false},
+   title={Text("Edit term")},
+   text={
+    Column(Modifier.heightIn(max=480.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
+     Text("Edit the lesson JSON, including context, explanations, and exercises. Progress is preserved when the term and skill IDs remain unchanged.",fontSize=13.sp,color=Muted)
+     OutlinedTextField(value=entryDraft,onValueChange={entryDraft=it;editorError=""},label={Text("Entry JSON")},modifier=Modifier.fillMaxWidth(),minLines=10,maxLines=22,textStyle=androidx.compose.ui.text.TextStyle(fontSize=12.sp,lineHeight=17.sp))
+     if(editorError.isNotBlank())Text(editorError,color=Color(0xFFAE5A68),fontSize=12.sp)
+    }
+   },
+   confirmButton={TextButton(onClick={
+    try{
+     val edited=JSONObject(normalizeStudyJson(entryDraft))
+     val old=selected!!
+     val term=edited.optString("term").trim()
+     require(term.isNotBlank()){"Term cannot be empty."}
+     require(entries.none{it.term.equals(term,true) && !it.term.equals(old.term,true)}){"Another term already has this name."}
+     require(edited.optJSONArray("blocks")!=null || edited.optJSONArray("notes")!=null){"The lesson needs blocks or notes."}
+     val updated=JSONArray()
+     entries.forEach{entry->updated.put(if(entry.term==old.term)edited else JSONObject(entry.original))}
+     library=JSONObject().put("schemaVersion","3.0").put("entries",updated).toString()
+     save(library);entries=parseEntries(library);selected=entries.find{it.term==term};editEntry=false
+    }catch(e:Exception){editorError=e.message?:"Invalid JSON"}
+   }){Text("Save")}},
+   dismissButton={TextButton(onClick={editEntry=false}){Text("Cancel")}}
+  )
   if(showPaste) AlertDialog(onDismissRequest={showPaste=false},title={Text("Import study response")},text={
    Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("Large lessons are supported. Import a JSON file or paste the full response from your clipboard.",color=Muted,fontSize=13.sp)
