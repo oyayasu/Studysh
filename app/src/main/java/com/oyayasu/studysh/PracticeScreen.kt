@@ -1,6 +1,7 @@
 package com.oyayasu.studysh
 
 import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -51,11 +52,12 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  return questions
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable fun StudyshPractice(library:String,readProgress:()->String,saveProgress:(String)->Unit) {
  val questions=remember(library){questionsFromLibrary(library)}
  var progressRaw by remember { mutableStateOf(readProgress()) }
  val progress=remember(progressRaw){runCatching{JSONObject(progressRaw)}.getOrElse{JSONObject()}}
- val due=questions.filter{q->progress.optJSONObject(q.key)?.optLong("dueAt",0L)?:0L <= System.currentTimeMillis()}
+ val due=questions.filter{q->(progress.optJSONObject(q.key)?.optLong("dueAt",0L) ?: 0L) <= System.currentTimeMillis()}
  val practiced=questions.count{progress.has(it.key)}
  var active by remember { mutableStateOf(false) }
  var cursor by remember { mutableIntStateOf(0) }
@@ -128,7 +130,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
     }
    }
   } else if(current==null){
-   Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.Center){
+   Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.Center){
     Icon(Icons.Outlined.CheckCircle,null,tint=Lavender,modifier=Modifier.size(58.dp))
     Text("Session complete",fontSize=26.sp,fontWeight=FontWeight.Bold)
     Text("$correctCount of $reviewed correct on the first check.",color=Soft)
