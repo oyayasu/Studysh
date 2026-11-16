@@ -179,12 +179,12 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
       }
      }
      Text("How well did you remember?",fontWeight=FontWeight.SemiBold,fontSize=14.sp,color=Dark)
-     Text("Suggested: "+when(suggestedRating){1->"Again";2->"Hard";3->"Good";else->"Easy"},fontSize=12.sp,color=Soft)
+     Text(if(correct)"Suggested: Good. Choose Hard if you struggled or Easy if it felt effortless." else "Incorrect answers are scheduled as Again.",fontSize=12.sp,color=Soft)
      Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()){
       listOf("Again","Hard","Good","Easy").forEachIndexed{index,label->
        val rating=index+1
-       Surface(onClick={chosenRating=rating},modifier=Modifier.weight(1f),
-        color=if(chosenRating==rating)Pale else Color.White,
+       Surface(onClick={chosenRating=rating},enabled=correct || rating==1,modifier=Modifier.weight(1f),
+        color=if(chosenRating==rating)Pale else if(!correct && rating!=1)Color(0xFFF3F2F4) else Color.White,
         shape=RoundedCornerShape(12.dp),border=BorderStroke(1.dp,if(chosenRating==rating)Lavender else Color(0xFFE3DFE8))){
         Text(label,modifier=Modifier.padding(vertical=12.dp),fontSize=12.sp,fontWeight=if(chosenRating==rating)FontWeight.Bold else FontWeight.Normal,color=Dark,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
        }
