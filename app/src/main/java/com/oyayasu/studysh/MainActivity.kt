@@ -109,24 +109,66 @@ private fun parseEntries(raw:String):List<Entry>{
 }
 private fun prompt(queries:List<StudyQuery>):String {
  val requested=JSONArray()
- queries.filter{it.term.isNotBlank()}.forEach{q->requested.put(JSONObject().put("term",q.term.trim()).put("context",q.context.trim()).put("originalSentence",q.sentence.trim()))}
+ queries.filter{it.term.isNotBlank()}.forEach { q ->
+  requested.put(JSONObject().put("term",q.term.trim()).put("context",q.context.trim())
+   .put("originalSentence",q.sentence.trim()))
+ }
  return """
-You are a highly skilled teacher of natural American English for a Brazilian Portuguese speaker. Your job is to help the learner genuinely UNDERSTAND and USE each term, not memorize a dictionary or read an encyclopedia.
-REQUESTS (each context and original sentence belongs ONLY to its own term):
+ROLE
+You are a private teacher of natural American English for a Brazilian Portuguese learner. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
+
+REQUESTS — analyze each independently; context and source sentence belong ONLY to their own term:
 ${requested.toString(2)}
 
-PEDAGOGY:
-Explain mainly in clear Brazilian Portuguese. Keep target English expressions, reusable constructions, collocations and natural American English examples in English, paired with idiomatic Brazilian Portuguese interpretations.
-Start with a central mental model or meaning, not just a translation. If a context is provided, explain that sense FIRST, then expand to other relevant contexts, including ordinary conversations. Context is a free-form subject/situation, NOT a media type and NOT a limit on learning.
-If an original sentence is given, explain the term's function in it. If the original is missing or incomplete, do not invent the author's intent; identify genuine ambiguity and explain what additional context would clarify it. Do not add pointless uncertainty warnings.
-Teach the most useful reusable grammatical patterns, especially which prepositions, complements, verbs, nouns, and clauses normally appear before or after the term. Explain relevant restrictions and why patterns work. Include collocations, related forms and derived constructions when they improve independent use.
-Explain nuances: meaning, intensity, connotation, register, contrasts with near synonyms, contexts in which a phrase sounds unnatural, and important differences from literal Portuguese. Use illustrative natural examples, progressing from simple to contextual when valuable.
-Each term is DIFFERENT. Choose ONLY the insights it needs. Do not force fixed sections, minimum numbers of examples, quizzes, exercises, progress labels, trivia, or repeated explanations.
-Write like an excellent personalized ChatGPT explanation: short coherent paragraphs, concise descriptive headings, **bold** for essential patterns and insights, *italic* for English terms in running text, lists only when helpful. Make the explanation deep in insight but economical in words. Each point should build on the previous one. Separate examples from their translations visually.
+PEDAGOGY — follow all principles, but select only relevant material per term:
+1. Start with a concise CENTRAL MENTAL MODEL in Brazilian Portuguese: what the term communicates, implies, emphasizes, and how its meanings relate. Do not reduce it to a memorized translation. Separate truly unrelated senses rather than forcing a false common definition.
+2. If a context is provided, explain that sense FIRST and explain its role in the original sentence if provided. Context is a freely written subject or situation, not a media category, and is a STARTING POINT, never a restriction. Expand to other useful senses and ordinary contexts. If parentheses mark part of an expression, prioritize that part within the whole construction. If the source is incomplete, do not invent intent; acknowledge genuine ambiguity only where needed.
+3. Compare near alternatives ONLY when it changes interpretation or word choice. Explain differences in connotation, intensity, register, frequency, naturalness, syntax, and Portuguese interference. Do not invent hard distinctions where words overlap.
+4. Teach productive constructions explicitly: TERM + preposition/complement/clause, what can fill each slot, important restrictions, related forms, derived constructions, and typical collocations. Distinguish productive grammar from fixed phrases and typical word partnerships. Cover the important patterns without endless interchangeable examples.
+5. Give genuinely natural American English sentences paired with idiomatic Brazilian Portuguese. Each example must add something: a basic use, variation, nuance, another context, or restriction. Explain significant peculiarities immediately. Avoid contrived sentences.
+6. Address realistic mistakes: unnatural literal translation, incorrect prepositions, misleading near synonyms, inappropriate formality, and constructions that are possible but unusual. Never label uncommon language as categorically wrong.
+7. Adapt depth to complexity; anticipate useful doubts without repetition, trivia, etymology, generic introductions, inspirational language, conclusions, or compulsory sections. Do NOT put quizzes inside the lesson: exercises are a separate dataset.
+8. Write primarily in clear Brazilian Portuguese, preserving English terms, patterns, and example sentences. Use compact, elegant Markdown: **bold** for central patterns, *italics* when helpful, short paragraphs and lists only when useful. Order ideas so one leads logically to the next. Keep the reading experience like a well-formatted ChatGPT teaching response.
+9. Before finalizing, verify that the learner can understand the concept, recognize it across contexts, distinguish important alternatives, identify its natural constructions and collocations, and build original sentences.
 
-OUTPUT: Return ONLY a single complete valid JSON object, with no code fences:
-{"version":2,"entries":[{"term":"strive","language":"English","pronunciation":"/straɪv/","partOfSpeech":"verb","context":"Art — drawing","originalSentence":"","blocks":[{"style":"purple","title":"Ideia central","text":"Clear **bold** and *italic* Markdown."},{"style":"blue","title":"Construções importantes","text":"**strive to + verb** — ..."},{"style":"green","title":"Exemplos naturais","examples":[{"en":"Artists strive to improve.","pt":"Artistas se empenham em melhorar."}]},{"style":"yellow","title":"Nuance importante","text":"..."}]}]}
-Each entry has a flexible number of blocks with FREE titles. Blocks may contain text, examples, or both. Visual styles are hints, NOT required sections: purple=concept, blue=patterns, green=examples, yellow=nuance, rose=ambiguity/caveat, plain=neutral. Order blocks for clear learning, not by color. Keep paragraphs and cards reasonably short without sacrificing necessary insights. Use proper JSON escaping only: NEVER escape Markdown asterisks, underscores, or JSON array brackets with backslashes. Include EVERY requested term; if space is limited remove redundancy, not terms. Never output partial JSON.
+EXERCISE DESIGN
+Generate a compact but meaningful practice bank grounded in the ACTUAL taught meanings, patterns and nuances. Prefer these modes:
+- "complete": choose the missing word/preposition or phrase in a natural English sentence;
+- "build": assemble a natural sentence from shuffled word/phrase tiles;
+- "choice": choose the most natural expression in a given context.
+Use "recognition", "construction", "nuance", or "production" as the skill, selecting what the question genuinely tests.
+For each exercise, give a stable ID unique within its entry, a skillId matching one of the knowledge skills, clear English instructions, an optional ptPrompt for meaning/context, answer and short Brazilian Portuguese explanation of WHY. For multiple-choice: exactly one unambiguously best answer, plausible distractors, and avoid accidental alternative correct readings. For build: tiles must contain exactly the fragments needed, with an unambiguous order and a canonical answer; do not use punctuation as separate tiles. No misleading artificial sentences. Include enough variety to test recognition and pattern use, without fixed quotas or duplicating the same fact.
+Knowledge skill IDs must be short stable semantic identifiers (e.g. "meaning-transfer", "pattern-convey-to"), not positional numbers. Patterns and exercises reference these IDs. Never claim that multiple-choice success alone proves productive mastery.
+Do not generate arbitrary spaced-repetition intervals, scores, timestamps, mastery or review dates. Those belong to the app's LOCAL progress store and future FSRS scheduler, not AI content.
+The AI cannot reliably evaluate unrestricted original sentences using exact-string comparison. Do not create open-ended exercises requiring automatic semantic grading.
+
+OUTPUT — STRICT, COMPLETE JSON ONLY, no fences or commentary.
+Use schemaVersion "3.0", with this example as a STRUCTURAL MODEL, not a mandatory set of sections or sample content:
+{
+ "schemaVersion":"3.0",
+ "entries":[{
+  "term":"convey","language":"English","pronunciation":"/kənˈveɪ/","partOfSpeech":"verb",
+  "context":"Art — composition","originalSentence":"",
+  "blocks":[
+   {"id":"concept","style":"purple","title":"Ideia central","text":"Texto didático com **destaques**."},
+   {"id":"patterns","style":"blue","title":"Construções","text":"**convey something to someone** — ..."},
+   {"id":"examples","style":"green","title":"Exemplos naturais","examples":[{"en":"The painting conveys a sense of depth.","pt":"A pintura transmite uma sensação de profundidade."}]}
+  ],
+  "knowledge":{
+   "skills":[{"id":"meaning-transfer","label":"Meaning and recognition","type":"recognition"},
+             {"id":"pattern-convey-to","label":"Convey something to someone","type":"construction"}],
+   "patterns":[{"id":"convey-to","skillId":"pattern-convey-to","structure":"convey + something + to + someone","explanation":"Transmitir algo a alguém.","examples":["convey a message to the audience"]}],
+   "collocations":[{"expression":"convey emotion","meaning":"transmitir emoção","skillId":"meaning-transfer"}],
+   "nuances":[{"expression":"convey vs show","explanation":"Diferença relevante, sem absolutismos.","skillId":"meaning-transfer"}]
+  },
+  "exercises":[
+   {"id":"convey-to-01","type":"complete","skillId":"pattern-convey-to","instruction":"Complete the sentence.","sentence":"She conveyed the idea ___ her team.","options":["to","for","at","with"],"answer":"to","explanation":"Usamos **convey something to someone**."},
+   {"id":"convey-build-01","type":"build","skillId":"pattern-convey-to","instruction":"Build the sentence.","ptPrompt":"O artista transmitiu uma mensagem ao público.","tiles":["to the audience.","The artist","conveyed","a message"],"answer":"The artist conveyed a message to the audience.","explanation":"A ordem é sujeito + convey + conteúdo + to + destinatário."},
+   {"id":"convey-choice-01","type":"choice","skillId":"meaning-transfer","instruction":"Choose the most natural sentence.","ptPrompt":"Escolha a frase adequada ao contexto.","options":["The drawing conveys a sense of movement.","The drawing conveys a sense of movement to."],"answer":"The drawing conveys a sense of movement.","explanation":"Não se usa **to** sem complemento."}
+  ]
+ }]
+}
+For blocks, titles are free and sections are optional. Style colors: purple=concept, blue=patterns, green=examples, yellow=nuance, rose=caveat, plain=neutral. Do not repeat the structured knowledge data verbatim in every block. Knowledge is machine-readable metadata; blocks are the readable lesson. Each exercise must refer to a defined skillId. Every answer must be exactly reconstructible from options or tiles. Keep JSON compact enough to finish ALL entries; prefer fewer strong exercises and precise explanations over excessive volume. Use standard JSON escaping only. No trailing commas, no Markdown fences, no incomplete entries.
 """.trimIndent()
 }
 @Composable private fun StudyshApp(read:()->String,save:(String)->Unit){
@@ -157,7 +199,7 @@ Each entry has a flexible number of blocks with FREE titles. Blocks may contain 
     throw IllegalArgumentException("JSON is incomplete or malformed. No terms were imported. Please import a complete .json file or copy the entire response.")
    }
    val partial=false
-   if(root.optString("schemaVersion")!="1.0" && root.optInt("version")!=2) throw IllegalArgumentException("Unsupported JSON format. Expected Studysh v2 or legacy v1.")
+   if(root.optString("schemaVersion")!="1.0" && root.optInt("version")!=2 && root.optString("schemaVersion")!="3.0") throw IllegalArgumentException("Unsupported JSON format. Expected Studysh v3, v2 or legacy v1.")
    if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
    val incoming=parseEntries(root.toString())
    if(incoming.isEmpty()) throw IllegalArgumentException("No terms found in JSON.")
@@ -187,7 +229,7 @@ Each entry has a flexible number of blocks with FREE titles. Blocks may contain 
     map[key]=replacement
    }
    val arr=JSONArray();map.values.forEach { arr.put(it) }
-   library=JSONObject().put("version",2).put("entries",arr).toString()
+   library=JSONObject().put("schemaVersion","3.0").put("entries",arr).toString()
    save(library);entries=parseEntries(library);error=if(partial) "Recovered ${incoming.size} complete term(s). The response was cut off; remaining terms were not imported." else "Imported ${incoming.size} term(s).";showPaste=false;page=1
   }catch(e:Exception){error="Import failed: "+(e.message?:"Invalid JSON").take(180)}
  }
