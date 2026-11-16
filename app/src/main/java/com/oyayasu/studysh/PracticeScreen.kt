@@ -66,6 +66,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  }.sortedWith(compareBy<PracticeQuestion>{StudyFsrs.dueAt(progress.optJSONObject(it.key))==0L}
   .thenBy{StudyFsrs.dueAt(progress.optJSONObject(it.key))})
  val practiced=questions.map{it.key}.distinct().count{progress.has(it)}
+ val upcoming=questions.map{it.key}.distinct().map{StudyFsrs.dueAt(progress.optJSONObject(it))}.filter{it>now}.minOrNull()
  var active by remember { mutableStateOf(false) }
  var cursor by remember { mutableIntStateOf(0) }
  var choice by remember { mutableStateOf("") }
@@ -128,6 +129,16 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
       else "FSRS-6 schedules reviews based on how well you remember.",fontSize=13.sp,color=Soft)
     }
     if(questions.isNotEmpty())item {
+     if(upcoming!=null){
+      val remaining=(upcoming-now).coerceAtLeast(0L)
+      val label=when{
+       remaining<3_600_000L->"${(remaining/60_000L).coerceAtLeast(1L)} min"
+       remaining<86_400_000L->"${(remaining/3_600_000L).coerceAtLeast(1L)} hr"
+       else->"${(remaining/86_400_000L).coerceAtLeast(1L)} days"
+      }
+      Text("Next scheduled review: in $label",color=Soft,fontSize=13.sp)
+      Spacer(Modifier.height(12.dp))
+     }
      Text("Your practice terms",fontWeight=FontWeight.Bold,fontSize=18.sp)
      Spacer(Modifier.height(9.dp))
      questions.map{it.term}.distinct().forEach{term->
