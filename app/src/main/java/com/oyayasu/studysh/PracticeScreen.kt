@@ -57,7 +57,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  val questions=remember(library){questionsFromLibrary(library)}
  var progressRaw by remember { mutableStateOf(readProgress()) }
  val progress=remember(progressRaw){runCatching{JSONObject(progressRaw)}.getOrElse{JSONObject()}}
- val due=questions.filter{q->(progress.optJSONObject(q.key)?.optLong("dueAt",0L) ?: 0L) <= System.currentTimeMillis()}
+ val due=questions.filter{q->StudyFsrs.dueAt(progress.optJSONObject(q.key)) <= System.currentTimeMillis()}
  val practiced=questions.count{progress.has(it.key)}
  var active by remember { mutableStateOf(false) }
  var cursor by remember { mutableIntStateOf(0) }
@@ -66,21 +66,18 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  var checked by remember { mutableStateOf(false) }
  var reviewed by remember { mutableIntStateOf(0) }
  var correctCount by remember { mutableIntStateOf(0) }
+ var suggestedRating by remember { mutableIntStateOf(3) }
+ var chosenRating by remember { mutableIntStateOf(3) }
  val session=remember(active,library){if(active)due else emptyList()}
  val current=session.getOrNull(cursor)
  fun resetAnswer(){choice="";tiles=emptyList();checked=false}
- fun record(correct:Boolean,q:PracticeQuestion){
-  val now=System.currentTimeMillis()
-  val item=progress.optJSONObject(q.key)?:JSONObject()
-  val streak=if(correct)item.optInt("streak",0)+1 else 0
-  // Temporary conservative review scheduling; not FSRS.
-  val delay=if(!correct)60_000L else when(streak){1->86_400_000L;2->3*86_400_000L;else->7*86_400_000L}
-  item.put("streak",streak).put("attempts",item.optInt("attempts",0)+1)
-   .put("correct",item.optInt("correct",0)+(if(correct)1 else 0))
-   .put("lastAt",now).put("dueAt",now+delay)
-  progress.put(q.key,item)
-  progressRaw=progress.toString();saveProgress(progressRaw)
-  reviewed++;if(correct)correctCount++
+ fun record(correct:Boolean,q:PracticeQuestion,rating:Int){
+  val next=StudyFsrs.review(progress.optJSONObject(q.key),rating)
+  progress.put(q.key,next)
+  progressRaw=progress.toString()
+  saveProgress(progressRaw)
+  reviewed++
+  if(correct)correctCount++
  }
  Column(Modifier.fillMaxSize().background(Color(0xFFFCFBFE))) {
   if(!active){
@@ -119,7 +116,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
      Spacer(Modifier.height(8.dp))
      Text(if(questions.isEmpty())"Import a Studysh v3 lesson with exercises to start practicing."
       else if(due.isEmpty())"Your next reviews will appear here when they're due."
-      else "Mistakes are part of learning. No lives to lose.",fontSize=13.sp,color=Soft)
+      else "FSRS-6 schedules reviews based on how well you remember.",fontSize=13.sp,color=Soft)
     }
     if(questions.isNotEmpty())item {
      Text("Your practice terms",fontWeight=FontWeight.Bold,fontSize=18.sp)
@@ -181,9 +178,21 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
        if(q.explanation.isNotBlank())Text(q.explanation,fontSize=14.sp,lineHeight=22.sp)
       }
      }
-     Button(onClick={record(correct,q);cursor++;resetAnswer()},modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Continue",fontWeight=FontWeight.Bold)}
+     Text("How well did you remember?",fontWeight=FontWeight.SemiBold,fontSize=14.sp,color=Dark)
+     Text("Suggested: "+when(suggestedRating){1->"Again";2->"Hard";3->"Good";else->"Easy"},fontSize=12.sp,color=Soft)
+     Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()){
+      listOf("Again","Hard","Good","Easy").forEachIndexed{index,label->
+       val rating=index+1
+       Surface(onClick={chosenRating=rating},modifier=Modifier.weight(1f),
+        color=if(chosenRating==rating)Pale else Color.White,
+        shape=RoundedCornerShape(12.dp),border=BorderStroke(1.dp,if(chosenRating==rating)Lavender else Color(0xFFE3DFE8))){
+        Text(label,modifier=Modifier.padding(vertical=12.dp),fontSize=12.sp,fontWeight=if(chosenRating==rating)FontWeight.Bold else FontWeight.Normal,color=Dark,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
+       }
+      }
+     }
+     Button(onClick={record(correct,q,chosenRating);cursor++;resetAnswer()},modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Continue",fontWeight=FontWeight.Bold)}
     }else{
-     Button(onClick={checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Check",fontWeight=FontWeight.Bold)}
+     Button(onClick={suggestedRating=if(correct)3 else 1;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Check",fontWeight=FontWeight.Bold)}
     }
    }
   }
