@@ -63,7 +63,8 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
   val card=progress.optJSONObject(group.first().key)
   if(StudyFsrs.dueAt(card)>now)null
   else group[(card?.optInt("attempts",0)?:0)%group.size]
- }
+ }.sortedWith(compareBy<PracticeQuestion>{StudyFsrs.dueAt(progress.optJSONObject(it.key))==0L}
+  .thenBy{StudyFsrs.dueAt(progress.optJSONObject(it.key))})
  val practiced=questions.map{it.key}.distinct().count{progress.has(it)}
  var active by remember { mutableStateOf(false) }
  var cursor by remember { mutableIntStateOf(0) }
@@ -75,7 +76,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  var suggestedRating by remember { mutableIntStateOf(3) }
  var chosenRating by remember { mutableIntStateOf(3) }
  var exerciseStartedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
- val session=remember(active,library){if(active)due else emptyList()}
+ val session=remember(active,library){if(active)due.take(20) else emptyList()}
  val current=session.getOrNull(cursor)
  fun resetAnswer(){choice="";tiles=emptyList();checked=false;exerciseStartedAt=System.currentTimeMillis()}
  fun record(correct:Boolean,q:PracticeQuestion,rating:Int){
