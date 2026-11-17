@@ -590,6 +590,59 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    }){Text("Save")}},
    dismissButton={TextButton(onClick={editEntry=false}){Text("Cancel")}}
   )
+  if(editingPersonalNote!=null && selected!=null) AlertDialog(
+   onDismissRequest={editingPersonalNote=null},
+   title={Text("Edit note")},
+   text={OutlinedTextField(value=personalNoteDraft,onValueChange={personalNoteDraft=it},modifier=Modifier.fillMaxWidth(),minLines=4)},
+   confirmButton={TextButton(onClick={
+    val item=selected!!
+    val index=editingPersonalNote!!
+    val all=JSONObject(library)
+    val data=all.getJSONArray("entries")
+    for(i in 0 until data.length()){
+     val obj=data.getJSONObject(i)
+     if(obj.optString("term")==item.term){
+      val notes=obj.optJSONArray("personalNotes")?:JSONArray()
+      if(index in 0 until notes.length()){
+       val old=notes.optJSONObject(index)?:JSONObject()
+       old.put("text",personalNoteDraft.trim())
+       notes.put(index,old)
+       obj.put("personalNotes",notes)
+       data.put(i,obj)
+      }
+      break
+     }
+    }
+    library=all.toString();save(library);entries=parseEntries(library)
+    selected=entries.find{it.term==item.term};editingPersonalNote=null
+   },enabled=personalNoteDraft.isNotBlank()){Text("Save changes")}},
+   dismissButton={TextButton(onClick={editingPersonalNote=null}){Text("Cancel")}}
+  )
+  if(deletePersonalNote!=null && selected!=null) AlertDialog(
+   onDismissRequest={deletePersonalNote=null},
+   title={Text("Delete note?")},
+   text={Text("This personal note will be permanently deleted.")},
+   confirmButton={TextButton(onClick={
+    val item=selected!!
+    val index=deletePersonalNote!!
+    val all=JSONObject(library)
+    val data=all.getJSONArray("entries")
+    for(i in 0 until data.length()){
+     val obj=data.getJSONObject(i)
+     if(obj.optString("term")==item.term){
+      val notes=obj.optJSONArray("personalNotes")?:JSONArray()
+      val remaining=JSONArray()
+      for(j in 0 until notes.length())if(j!=index)remaining.put(notes.get(j))
+      obj.put("personalNotes",remaining)
+      data.put(i,obj)
+      break
+     }
+    }
+    library=all.toString();save(library);entries=parseEntries(library)
+    selected=entries.find{it.term==item.term};deletePersonalNote=null
+   }){Text("Delete")}},
+   dismissButton={TextButton(onClick={deletePersonalNote=null}){Text("Cancel")}}
+  )
   if(showPaste) AlertDialog(onDismissRequest={showPaste=false},title={Text("Import study response")},text={
    Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text("Large lessons are supported. Import a JSON file or paste the full response from your clipboard.",color=Muted,fontSize=13.sp)
