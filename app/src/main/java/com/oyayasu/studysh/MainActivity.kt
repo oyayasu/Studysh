@@ -205,6 +205,9 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  var importSource by remember { mutableStateOf("paste") }
  var editNote by remember { mutableStateOf(false) }
  var customNote by remember { mutableStateOf("") }
+ var editingPersonalNote by remember { mutableStateOf<Int?>(null) }
+ var personalNoteDraft by remember { mutableStateOf("") }
+ var deletePersonalNote by remember { mutableStateOf<Int?>(null) }
  var editEntry by remember { mutableStateOf(false) }
  var deleteEntry by remember { mutableStateOf(false) }
  var entryDraft by remember { mutableStateOf("") }
@@ -341,7 +344,16 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      val savedPersonal=runCatching{JSONObject(item.original).optJSONArray("personalNotes")}.getOrNull()
      if(savedPersonal!=null)items(savedPersonal.length()){index->
       val note=savedPersonal.optJSONObject(index)?.optString("text").orEmpty()
-      if(note.isNotBlank())StudyNoteCard(Note("My notes","plain",note),index,onSpeak={piper.speak(it)},onStudy={term,sentence->pendingExample=term to sentence})
+      if(note.isNotBlank()){
+       Column(Modifier.fillMaxWidth()){
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
+         Text("My notes",fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
+         IconButton(onClick={editingPersonalNote=index;personalNoteDraft=note}){Icon(Icons.Outlined.Edit,"Edit note")}
+         IconButton(onClick={deletePersonalNote=index}){Icon(Icons.Outlined.DeleteOutline,"Delete note")}
+        }
+        StudyNoteCard(Note("My notes","plain",note),index,onSpeak={piper.speak(it)},onStudy={term,sentence->pendingExample=term to sentence})
+       }
+      }
      }
      item {
       Column(Modifier.fillMaxWidth().border(1.dp,Color(0xFFE5E1E9),RoundedCornerShape(20.dp)).background(Color.White,RoundedCornerShape(20.dp)).padding(16.dp)){
