@@ -223,7 +223,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     require(restored.optJSONArray("entries")!=null){"Backup is missing entries."}
     val parsed=parseEntries(restored.toString())
     library=restored.toString();save(library);entries=parsed
-    saveProgress(restoredProgress.toString());showPaste=false;page=1;error="Backup restored: ${parsed.size} terms and review history.";return
+    saveProgress(restoredProgress.toString());showPaste=false;page=3;error="Backup restored: ${parsed.size} terms and review history.";return
    }
    if(root.optString("schemaVersion")!="1.0" && root.optInt("version")!=2 && root.optString("schemaVersion")!="3.0") throw IllegalArgumentException("Unsupported JSON format. Expected Studysh v3, v2 or legacy v1.")
    if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
@@ -256,7 +256,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    }
    val arr=JSONArray();map.values.forEach { arr.put(it) }
    library=JSONObject().put("schemaVersion","3.0").put("entries",arr).toString()
-   save(library);entries=parseEntries(library);error=if(partial) "Recovered ${incoming.size} complete term(s). The response was cut off; remaining terms were not imported." else "Imported ${incoming.size} term(s).";showPaste=false;page=1
+   save(library);entries=parseEntries(library);error=if(partial) "Recovered ${incoming.size} complete term(s). The response was cut off; remaining terms were not imported." else "Imported ${incoming.size} term(s).";showPaste=false;page=3
   }catch(e:Exception){error="Import failed: "+(e.message?:"Invalid JSON").take(180)}
  }
  MaterialTheme(colorScheme=lightColorScheme(primary=Ink,background=Canvas,surface=Color.White,onSurface=Ink)){
@@ -272,7 +272,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     val item=selected!!
     Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically){
      IconButton(onClick={selected=null}){Icon(Icons.Outlined.ArrowBack,"Back")}
-     Text("Library",color=Muted)
+     Text("Lessons",color=Muted)
     }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
      item {
@@ -343,9 +343,71 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
       }
      }
      2->Box(Modifier.weight(1f)){StudyshPractice(library,readProgress,saveProgress)}
+     1->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+      item{
+       Text("Welcome to Studysh",fontSize=28.sp,fontWeight=FontWeight.Bold)
+       Text("Understand words deeply. Remember them naturally.",fontSize=14.sp,color=Muted)
+      }
+      item{
+       Surface(color=Color(0xFFF1EAFB),shape=RoundedCornerShape(24.dp)){
+        Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){
+         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(9.dp)){
+          Text("Your learning space",fontSize=21.sp,fontWeight=FontWeight.Bold)
+          Text("Read your lessons, then strengthen your memory with practice.",fontSize=14.sp,color=Muted,lineHeight=21.sp)
+         }
+         StudyshMascot(Modifier.size(100.dp))
+        }
+       }
+      }
+      item{
+       Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){
+        Surface(onClick={page=3},modifier=Modifier.weight(1f),color=Color(0xFFEAF1FB),shape=RoundedCornerShape(20.dp)){
+         Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+          Icon(Icons.Outlined.MenuBook,null,tint=Color(0xFF617AA1))
+          Text("${entries.size}",fontSize=27.sp,fontWeight=FontWeight.Bold)
+          Text("Lessons",fontSize=13.sp,color=Muted)
+         }
+        }
+        Surface(onClick={page=2},modifier=Modifier.weight(1f),color=Color(0xFFE7F5EE),shape=RoundedCornerShape(20.dp)){
+         Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
+          Icon(Icons.Outlined.Extension,null,tint=Color(0xFF648C75))
+          Text("Practice",fontSize=19.sp,fontWeight=FontWeight.Bold)
+          Text("Review your skills",fontSize=13.sp,color=Muted)
+         }
+        }
+       }
+      }
+      item{
+       Text("Recent lessons",fontSize=19.sp,fontWeight=FontWeight.Bold)
+       if(entries.isEmpty())Text("Your lessons will appear here after importing a study response.",fontSize=14.sp,color=Muted)
+       else entries.takeLast(4).reversed().forEach{entry->
+        Surface(onClick={selected=entry},color=Color.White,shape=RoundedCornerShape(16.dp),
+         border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFEAE5EE))){
+         Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
+          Column(Modifier.weight(1f)){
+           Text(entry.term,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
+           Text(entry.pronunciation,fontSize=12.sp,color=Muted)
+          }
+          Icon(Icons.Outlined.ChevronRight,null,tint=Muted)
+         }
+        }
+        Spacer(Modifier.height(8.dp))
+       }
+      }
+     }
      else->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
       item{
-       Row(verticalAlignment=Alignment.CenterVertically){Text("Library",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));IconButton(onClick={compact=!compact}){Icon(Icons.Outlined.Tune,"Layout")}}
+       Row(verticalAlignment=Alignment.CenterVertically){Text("Lessons",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));IconButton(onClick={compact=!compact}){Icon(Icons.Outlined.Tune,"Layout")}}
+       Spacer(Modifier.height(10.dp))
+       Surface(color=Color(0xFFF1EAFB),shape=RoundedCornerShape(22.dp)){
+        Row(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically){
+         Column(Modifier.weight(1f)){
+          Text("Your vocabulary library",fontSize=16.sp,fontWeight=FontWeight.SemiBold)
+          Text("${entries.size} saved lessons",fontSize=12.sp,color=Muted)
+         }
+         StudyshMascot(Modifier.size(78.dp))
+        }
+       }
        Spacer(Modifier.height(8.dp))
        OutlinedTextField(value=search,onValueChange={search=it},placeholder={Text("Search your terms")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(22.dp))
        Spacer(Modifier.height(10.dp))
@@ -375,6 +437,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     NavigationBar(containerColor=Color(0xFFFAF7FD),tonalElevation=0.dp){
      NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.Home,null)},label={Text("Home")})
      NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text("Create")})
+     NavigationBarItem(selected=page==3,onClick={page=3},icon={Icon(Icons.Outlined.MenuBook,null)},label={Text("Lessons")})
      NavigationBarItem(selected=page==2,onClick={page=2},icon={Icon(Icons.Outlined.Extension,null)},label={Text("Practice")})
     }
    }
