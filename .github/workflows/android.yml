@@ -71,7 +71,10 @@ jobs:
               if [ -f "$logfile" ]; then
                 echo "## $(basename "$logfile")"
                 echo '~~~text'
-                tail -n 220 "$logfile"
+                echo '### Compiler errors and test failures'
+                grep -E '^e: |^> Task .*FAILED| FAILED$| tests completed|^FAILURE:|^\* What went wrong:' "$logfile" | tail -n 100 || true
+                echo '### End of build log'
+                tail -n 100 "$logfile"
                 echo '~~~'
               fi
             done
