@@ -2,6 +2,8 @@ package com.oyayasu.studysh
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.*
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -237,15 +239,34 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  }
 }
 
-@Composable private fun StudyshMascot(modifier:Modifier=Modifier){
- Canvas(modifier){
+@Composable fun StudyshMascot(modifier:Modifier=Modifier){
+ val transition=rememberInfiniteTransition(label="mascot")
+ val bounce by transition.animateFloat(initialValue=0f,targetValue=1f,
+  animationSpec=infiniteRepeatable(animation=tween(1900,easing=FastOutSlowInEasing),repeatMode=RepeatMode.Reverse),
+  label="bounce")
+ val blink by transition.animateFloat(initialValue=1f,targetValue=0.07f,
+  animationSpec=infiniteRepeatable(animation=keyframes{
+   durationMillis=3900
+   1f at 0
+   1f at 3450
+   .07f at 3570
+   1f at 3700
+   1f at 3900
+  },repeatMode=RepeatMode.Restart),label="blink")
+ Canvas(modifier.graphicsLayer{
+  translationY=-7f*bounce
+  scaleX=1f+.035f*bounce
+  scaleY=1f-.035f*bounce
+ }){
   val w=size.width;val h=size.height
   drawOval(brush=Brush.radialGradient(listOf(Color(0xFFF8EDFF),Color(0xFFD6B4F1),Color(0xFFB18BDC)),
    center=Offset(w*.38f,h*.24f),radius=w*.82f),
    topLeft=Offset(w*.07f,h*.10f),size=Size(w*.86f,h*.81f))
   drawOval(color=Color.White.copy(alpha=.36f),topLeft=Offset(w*.24f,h*.17f),size=Size(w*.38f,h*.13f))
-  drawCircle(color=Color(0xFF40314E),radius=w*.034f,center=Offset(w*.39f,h*.51f))
-  drawCircle(color=Color(0xFF40314E),radius=w*.034f,center=Offset(w*.61f,h*.51f))
+  drawOval(color=Color(0xFF40314E),topLeft=Offset(w*.355f,h*(.51f-.034f*blink)),
+   size=Size(w*.068f,h*.068f*blink))
+  drawOval(color=Color(0xFF40314E),topLeft=Offset(w*.575f,h*(.51f-.034f*blink)),
+   size=Size(w*.068f,h*.068f*blink))
   drawArc(color=Color(0xFF59416C),startAngle=15f,sweepAngle=150f,useCenter=false,
    topLeft=Offset(w*.445f,h*.55f),size=Size(w*.11f,h*.11f),style=Stroke(width=w*.022f))
  }
