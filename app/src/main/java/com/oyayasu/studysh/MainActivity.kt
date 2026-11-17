@@ -46,7 +46,9 @@ class MainActivity:ComponentActivity(){
    readProgress={getPreferences(MODE_PRIVATE).getString("practice_progress","{}")?:"{}"},
    saveProgress={getPreferences(MODE_PRIVATE).edit().putString("practice_progress",it).apply()},
    readLanguage={getPreferences(MODE_PRIVATE).getString("study_language","English")?:"English"},
-   saveLanguage={getPreferences(MODE_PRIVATE).edit().putString("study_language",it).apply()}
+   saveLanguage={getPreferences(MODE_PRIVATE).edit().putString("study_language",it).apply()},
+   readAppLanguage={getPreferences(MODE_PRIVATE).getString("app_language","en")?:"en"},
+   saveAppLanguage={getPreferences(MODE_PRIVATE).edit().putString("app_language",it).apply()}
   ) }
  }
 }
@@ -119,16 +121,17 @@ private fun prompt(queries:List<StudyQuery>,language:String):String {
   requested.put(JSONObject().put("term",q.term.trim()).put("context",q.context.trim())
    .put("originalSentence",q.sentence.trim()).put("specificQuestion",q.doubt.trim()))
  }
- val target=when(language){"Japanese"->"natural Japanese";"Spanish"->"natural Latin American Spanish";else->"natural American English"}
- val sampleLanguage=when(language){"Japanese"->"Japanese";"Spanish"->"Spanish";else->"English"}
+ val target=when(language){"Japanese"->"natural Japanese";"Spanish"->"natural Latin American Spanish";"Portuguese"->"natural Brazilian Portuguese";else->"natural American English"}
+ val sampleLanguage=when(language){"Japanese"->"Japanese";"Spanish"->"Spanish";"Portuguese"->"Portuguese";else->"English"}
  val languageGuidance=when(language){
   "Japanese"->"Teach natural Japanese: kana and kanji, readings when useful, particles, verb forms, politeness levels, sentence structure, collocations and idiomatic usage. Provide romaji only when it helps pronunciation, never instead of Japanese writing. Avoid inventing exact one-to-one equivalents of Portuguese grammar."
   "Spanish"->"Teach natural Latin American Spanish, noting major regional variation when it changes usage. Cover gender, agreement, verb conjugations, prepositions, register, collocations and false cognates with Brazilian Portuguese. Do not overstate differences between regional varieties."
+  "Portuguese"->"Teach natural Brazilian Portuguese to a Brazilian Portuguese speaker who wants to deepen native-language mastery. Focus on meaning, nuance, register, regional usage, collocations, grammar, word choice, idiomatic expression, writing and speaking. Explain in Brazilian Portuguese and use authentic Brazilian Portuguese examples. Do not frame Portuguese as a foreign language or invent English translations."
   else->"Teach natural American English, including register, constructions, collocations and idiomatic use."
  }
  return """
 ROLE
-You are a private teacher of ${target} for a Brazilian Portuguese learner. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
+You are a private teacher of ${target} for a Brazilian Portuguese ${language=="Portuguese"?"native speaker":"learner"}. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
 
 REQUESTS — analyze each independently; context and source sentence belong ONLY to their own term:
 ${requested.toString(2)}
@@ -146,7 +149,7 @@ PEDAGOGY — follow all principles, but select only relevant material per term:
 
 LANGUAGE-SPECIFIC GUIDANCE
 ${languageGuidance}
-All entries MUST set "language" to "${sampleLanguage}". The target language is ${sampleLanguage}; never generate English-only teaching examples for Japanese or Spanish.
+All entries MUST set "language" to "${sampleLanguage}". The target language is ${sampleLanguage}; generate examples, answers and exercises in the selected target language. For Portuguese, both examples and their interpretations should be Brazilian Portuguese; use the "en" example field for the target-language sentence and "pt" for its Brazilian Portuguese explanation, to preserve app compatibility.
 
 EXERCISE DESIGN
 Generate a compact but meaningful practice bank grounded in the ACTUAL taught meanings, patterns and nuances. Prefer these modes:
@@ -154,7 +157,7 @@ Generate a compact but meaningful practice bank grounded in the ACTUAL taught me
 - "build": assemble a natural sentence from shuffled word/phrase tiles;
 - "choice": choose the most natural expression in a given context.
 Use "recognition", "construction", "nuance", or "production" as the skill, selecting what the question genuinely tests.
-For each exercise, give a stable ID unique within its entry, a skillId matching one of the knowledge skills, clear ${sampleLanguage} instructions, an optional ptPrompt for meaning/context, answer and short Brazilian Portuguese explanation of WHY. For multiple-choice: exactly one unambiguously best answer, plausible distractors, and avoid accidental alternative correct readings. For build: tiles must contain exactly the fragments needed, with an unambiguous order and a canonical answer; do not use punctuation as separate tiles. No misleading artificial sentences. Include enough variety to test recognition and pattern use, without fixed quotas or duplicating the same fact.
+For each exercise, give a stable ID unique within its entry, a skillId matching one of the knowledge skills, clear Brazilian Portuguese instructions, an optional ptPrompt for meaning/context, answer and short Brazilian Portuguese explanation of WHY. For multiple-choice: exactly one unambiguously best answer, plausible distractors, and avoid accidental alternative correct readings. For build: tiles must contain exactly the fragments needed, with an unambiguous order and a canonical answer; do not use punctuation as separate tiles. No misleading artificial sentences. Include enough variety to test recognition and pattern use, without fixed quotas or duplicating the same fact.
 Knowledge skill IDs must be short stable semantic identifiers (e.g. "meaning-transfer", "pattern-convey-to"), not positional numbers. Patterns and exercises reference these IDs. Never claim that multiple-choice success alone proves productive mastery.
 Do not generate arbitrary spaced-repetition intervals, scores, timestamps, mastery or review dates. Those belong to the app's LOCAL progress store and future FSRS scheduler, not AI content.
 The AI cannot reliably evaluate unrestricted original sentences using exact-string comparison. Do not create open-ended exercises requiring automatic semantic grading.
@@ -188,12 +191,14 @@ Use schemaVersion "3.0", with this English example as a STRUCTURAL MODEL only. T
 For blocks, titles are free and sections are optional. Style colors: purple=concept, blue=patterns, green=examples, yellow=nuance, rose=caveat, plain=neutral. Do not repeat the structured knowledge data verbatim in every block. Knowledge is machine-readable metadata; blocks are the readable lesson. Each exercise must refer to a defined skillId. Every answer must be exactly reconstructible from options or tiles. Keep JSON compact enough to finish ALL entries; prefer fewer strong exercises and precise explanations over excessive volume. Use standard JSON escaping only. No trailing commas, no Markdown fences, no incomplete entries.
 """.trimIndent()
 }
-@Composable private fun StudyshApp(read:()->String,save:(String)->Unit,readProgress:()->String,saveProgress:(String)->Unit,readLanguage:()->String,saveLanguage:(String)->Unit){
+@Composable private fun StudyshApp(read:()->String,save:(String)->Unit,readProgress:()->String,saveProgress:(String)->Unit,readLanguage:()->String,saveLanguage:(String)->Unit,readAppLanguage:()->String,saveAppLanguage:(String)->Unit){
  var library by remember { mutableStateOf(read()) }
  var entries by remember { mutableStateOf(runCatching { parseEntries(library) }.getOrDefault(emptyList())) }
  var page by remember { mutableStateOf(1) }
  var filter by remember { mutableStateOf("All") }
- var studyLanguage by remember { mutableStateOf(readLanguage().takeIf{it in listOf("English","Japanese","Spanish")} ?: "English") }
+ var studyLanguage by remember { mutableStateOf(readLanguage().takeIf{it in listOf("English","Japanese","Spanish","Portuguese")} ?: "English") }
+ var appLanguage by remember { mutableStateOf(readAppLanguage().takeIf{it in listOf("en","pt","es","ja")} ?: "en") }
+ StudyshI18n.language=appLanguage
  var compact by remember { mutableStateOf(true) }
  var selected by remember { mutableStateOf<Entry?>(null) }
  var search by remember { mutableStateOf("") }
@@ -292,19 +297,28 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    }
    if(page==6){
     Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
-     Row(verticalAlignment=Alignment.CenterVertically){IconButton(onClick={page=1}){Icon(Icons.Outlined.ArrowBack,"Back")};Text("Settings",fontSize=26.sp,fontWeight=FontWeight.Bold)}
-     Text("Language to study",fontSize=19.sp,fontWeight=FontWeight.SemiBold)
-     Text("Choose the language used by new study prompts. Existing lessons remain unchanged.",color=Muted,fontSize=14.sp)
-     listOf("English","Japanese","Spanish").forEach{language->
+     Row(verticalAlignment=Alignment.CenterVertically){IconButton(onClick={page=1}){Icon(Icons.Outlined.ArrowBack,"Back")};Text(ui("Settings"),fontSize=26.sp,fontWeight=FontWeight.Bold)}
+     Text(ui("App language"),fontSize=19.sp,fontWeight=FontWeight.SemiBold)
+     listOf("en" to "English","pt" to "Português","es" to "Español","ja" to "日本語").forEach{(code,label)->
+      Surface(onClick={appLanguage=code;StudyshI18n.language=code;saveAppLanguage(code)},shape=RoundedCornerShape(16.dp),color=if(appLanguage==code)Color(0xFFF1EAFB) else Color.White,border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE4DEEB))){
+       Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
+        Text(label,modifier=Modifier.weight(1f));if(appLanguage==code)Icon(Icons.Outlined.CheckCircle,"Selected",tint=Color(0xFF956DCE))
+       }
+      }
+     }
+     HorizontalDivider()
+     Text(ui("Language to study"),fontSize=19.sp,fontWeight=FontWeight.SemiBold)
+     Text(ui("Choose the language used by new study prompts. Existing lessons remain unchanged."),color=Muted,fontSize=14.sp)
+     listOf("English","Spanish","Japanese","Portuguese").forEach{language->
       Surface(onClick={studyLanguage=language;saveLanguage(language)},shape=RoundedCornerShape(16.dp),color=if(studyLanguage==language)Color(0xFFF1EAFB) else Color.White,border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE4DEEB))){
        Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
-        Text(language,modifier=Modifier.weight(1f),fontWeight=if(studyLanguage==language)FontWeight.Bold else FontWeight.Normal)
+        Text(ui(language),modifier=Modifier.weight(1f),fontWeight=if(studyLanguage==language)FontWeight.Bold else FontWeight.Normal)
         if(studyLanguage==language)Icon(Icons.Outlined.CheckCircle,"Selected",tint=Color(0xFF956DCE))
        }
       }
      }
-     Text("Lessons layout",fontSize=19.sp,fontWeight=FontWeight.SemiBold)
-     Row(verticalAlignment=Alignment.CenterVertically){Text("Compact layout",modifier=Modifier.weight(1f));Switch(checked=compact,onCheckedChange={compact=it})}
+     Text(ui("Lessons layout"),fontSize=19.sp,fontWeight=FontWeight.SemiBold)
+     Row(verticalAlignment=Alignment.CenterVertically){Text(ui("Compact layout"),modifier=Modifier.weight(1f));Switch(checked=compact,onCheckedChange={compact=it})}
      OutlinedButton(onClick={page=5},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.RecordVoiceOver,null);Text(" Voice settings")}
     }
    }else if(page==5){
@@ -319,7 +333,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     val item=selected!!
     Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically){
      IconButton(onClick={selected=null}){Icon(Icons.Outlined.ArrowBack,"Back")}
-     Text("Lessons",color=Muted)
+     Text(ui("Lessons"),color=Muted)
     }
     LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
      item {
@@ -347,7 +361,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
       if(note.isNotBlank()){
        Column(Modifier.fillMaxWidth()){
         Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically){
-         Text("My notes",fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
+         Text(ui("My notes"),fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
          IconButton(onClick={editingPersonalNote=index;personalNoteDraft=note}){Icon(Icons.Outlined.Edit,"Edit note")}
          IconButton(onClick={deletePersonalNote=index}){Icon(Icons.Outlined.DeleteOutline,"Delete note")}
         }
@@ -357,9 +371,9 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      }
      item {
       Column(Modifier.fillMaxWidth().border(1.dp,Color(0xFFE5E1E9),RoundedCornerShape(20.dp)).background(Color.White,RoundedCornerShape(20.dp)).padding(16.dp)){
-       Row(verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.EditNote,null);Spacer(Modifier.width(8.dp));Text("My notes",fontSize=19.sp,fontWeight=FontWeight.Bold)}
+       Row(verticalAlignment=Alignment.CenterVertically){Icon(Icons.Outlined.EditNote,null);Spacer(Modifier.width(8.dp));Text(ui("My notes"),fontSize=19.sp,fontWeight=FontWeight.Bold)}
        Spacer(Modifier.height(8.dp))
-       OutlinedTextField(value=customNote,onValueChange={customNote=it},placeholder={Text("Add your own observation...")},modifier=Modifier.fillMaxWidth(),minLines=3)
+       OutlinedTextField(value=customNote,onValueChange={customNote=it},placeholder={Text(ui("Add your own observation..."))},modifier=Modifier.fillMaxWidth(),minLines=3)
        Spacer(Modifier.height(8.dp))
        Button(onClick={
         if(customNote.isNotBlank()){
@@ -371,14 +385,14 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
          for(i in 0 until data.length()){if(data.getJSONObject(i).optString("term")==item.term){data.put(i,obj);break}}
          library=all.toString();save(library);entries=parseEntries(library);selected=entries.find{it.term==item.term};customNote=""
         }
-       }){Text("Save note")}
+       }){Text(ui("Save note"))}
       }
      }
     }
    }else{
     when(page){
      0->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
-      item{Text("New search",fontSize=27.sp,fontWeight=FontWeight.Bold);Text("Begin with your context, then explore natural usage elsewhere.",color=Muted,fontSize=14.sp,lineHeight=21.sp)}
+      item{Text(ui("New search"),fontSize=27.sp,fontWeight=FontWeight.Bold);Text("Begin with your context, then explore natural usage elsewhere.",color=Muted,fontSize=14.sp,lineHeight=21.sp)}
       items(fields.size){i->
        val query=fields[i]
        Column(Modifier.fillMaxWidth().background(Color.White,RoundedCornerShape(22.dp)).border(1.dp,Color(0xFFE9E4ED),RoundedCornerShape(22.dp)).padding(14.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
@@ -407,7 +421,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      1->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
       item{
        Row(verticalAlignment=Alignment.CenterVertically){
-        Text("Welcome to Studysh",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+        Text(ui("Welcome to Studysh"),fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
         IconButton(onClick={page=6}){Icon(Icons.Outlined.Tune,"Settings")}
        }
        Text("Understand words deeply. Remember them naturally.",fontSize=14.sp,color=Muted)
@@ -416,7 +430,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        Surface(color=Color(0xFFF1EAFB),shape=RoundedCornerShape(24.dp)){
         Row(Modifier.fillMaxWidth().padding(18.dp),verticalAlignment=Alignment.CenterVertically){
          Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(9.dp)){
-          Text("Your learning space",fontSize=21.sp,fontWeight=FontWeight.Bold)
+          Text(ui("Your learning space"),fontSize=21.sp,fontWeight=FontWeight.Bold)
           Text("Read your lessons, then strengthen your memory with practice.",fontSize=14.sp,color=Muted,lineHeight=21.sp)
          }
          StudyshMascot(Modifier.size(100.dp))
@@ -429,13 +443,13 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
          Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
           Icon(Icons.Outlined.MenuBook,null,tint=Color(0xFF617AA1))
           Text("${entries.size}",fontSize=27.sp,fontWeight=FontWeight.Bold)
-          Text("Lessons",fontSize=13.sp,color=Muted)
+          Text(ui("Lessons"),fontSize=13.sp,color=Muted)
          }
         }
         Surface(onClick={page=2},modifier=Modifier.weight(1f),color=Color(0xFFE7F5EE),shape=RoundedCornerShape(20.dp)){
          Column(Modifier.padding(18.dp),verticalArrangement=Arrangement.spacedBy(6.dp)){
           Icon(Icons.Outlined.Extension,null,tint=Color(0xFF648C75))
-          Text("Practice",fontSize=19.sp,fontWeight=FontWeight.Bold)
+          Text(ui("Practice"),fontSize=19.sp,fontWeight=FontWeight.Bold)
           Text("Review your skills",fontSize=13.sp,color=Muted)
          }
         }
@@ -461,30 +475,30 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      }
      else->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
       item{
-       Row(verticalAlignment=Alignment.CenterVertically){Text("Lessons",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))}
+       Row(verticalAlignment=Alignment.CenterVertically){Text(ui("Lessons"),fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))}
        Spacer(Modifier.height(10.dp))
        Surface(color=Color(0xFFF1EAFB),shape=RoundedCornerShape(22.dp)){
         Row(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically){
          Column(Modifier.weight(1f)){
-          Text("Your vocabulary library",fontSize=16.sp,fontWeight=FontWeight.SemiBold)
+          Text(ui("Your vocabulary library"),fontSize=16.sp,fontWeight=FontWeight.SemiBold)
           Text("${entries.size} saved lessons",fontSize=12.sp,color=Muted)
          }
          StudyshMascot(Modifier.size(78.dp))
         }
        }
        Spacer(Modifier.height(8.dp))
-       OutlinedTextField(value=search,onValueChange={search=it},placeholder={Text("Search your terms")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(22.dp))
+       OutlinedTextField(value=search,onValueChange={search=it},placeholder={Text(ui("Search your terms"))},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(22.dp))
        Spacer(Modifier.height(10.dp))
-       Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){listOf("All","English","Japanese","Spanish","Other").forEach{f->
+       Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){listOf("All","English","Japanese","Spanish","Portuguese","Other").forEach{f->
         val active=filter==f
         Surface(onClick={filter=f},color=if(active)Color(0xFF956DCE) else Color.White,shape=RoundedCornerShape(50),border=if(active)null else androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE6E0EA))){
-         Text(f,Modifier.padding(horizontal=12.dp,vertical=9.dp),fontSize=12.sp,color=if(active)Color.White else Ink)
+         Text(ui(f),Modifier.padding(horizontal=12.dp,vertical=9.dp),fontSize=12.sp,color=if(active)Color.White else Ink)
         }
        }}
       }
       val visible=entries.filter{it.term.contains(search,true)}.filter{entry->
        val language=entry.language
-       filter=="All" || (filter=="Other" && language !in listOf("English","Japanese","Spanish")) || language.equals(filter,true)
+       filter=="All" || (filter=="Other" && language !in listOf("English","Japanese","Spanish","Portuguese")) || language.equals(filter,true)
       }
       items(visible.size){i->
        val entry=visible[i]
@@ -492,18 +506,18 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
         Icon(Icons.Outlined.BookmarkBorder,null,modifier=Modifier.size(25.dp))
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)){Text(entry.term,fontSize=if(compact)19.sp else 23.sp,fontWeight=FontWeight.Bold);Text(entry.pronunciation.ifBlank{"${entry.notes.size} explanation sections"},fontSize=13.sp,color=Muted,maxLines=1)}
-        Surface(color=Color.White.copy(alpha=.65f),shape=RoundedCornerShape(50)){Text(when(entry.language.lowercase()){"japanese"->"JA";"spanish"->"ES";else->"EN"},Modifier.padding(horizontal=9.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
+        Surface(color=Color.White.copy(alpha=.65f),shape=RoundedCornerShape(50)){Text(when(entry.language.lowercase()){"japanese"->"JA";"spanish"->"ES";"portuguese"->"PT";else->"EN"},Modifier.padding(horizontal=9.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
        }
       }
       if(visible.isEmpty())item{Text(if(entries.isEmpty())"Your library is empty. Add your first study term." else "No matching terms.",color=Muted,modifier=Modifier.padding(top=16.dp))}
      }
     }
     NavigationBar(containerColor=Color(0xFFFAF7FD),tonalElevation=0.dp){
-     NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.Home,null)},label={Text("Home")})
-     NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text("Create")})
-     NavigationBarItem(selected=page==3,onClick={page=3},icon={Icon(Icons.Outlined.MenuBook,null)},label={Text("Lessons")})
-     NavigationBarItem(selected=page==2,onClick={page=2},icon={Icon(Icons.Outlined.Extension,null)},label={Text("Practice")})
-     NavigationBarItem(selected=page==5,onClick={page=5},icon={Icon(Icons.Outlined.RecordVoiceOver,null)},label={Text("Voice")})
+     NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.Home,null)},label={Text(ui("Home"))})
+     NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text(ui("Create"))})
+     NavigationBarItem(selected=page==3,onClick={page=3},icon={Icon(Icons.Outlined.MenuBook,null)},label={Text(ui("Lessons"))})
+     NavigationBarItem(selected=page==2,onClick={page=2},icon={Icon(Icons.Outlined.Extension,null)},label={Text(ui("Practice"))})
+     NavigationBarItem(selected=page==5,onClick={page=5},icon={Icon(Icons.Outlined.RecordVoiceOver,null)},label={Text(ui("Voice"))})
     }
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp,maxLines=4,overflow=TextOverflow.Ellipsis)
@@ -526,7 +540,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
       error="Added \"$term\" with its original sentence. Review your prompt."
      }else error="The prompt supports up to five terms. Remove one before adding another."
     },enabled=fields.count{it.term.isNotBlank()}<5){Text("Add to prompt")}},
-    dismissButton={TextButton(onClick={pendingExample=null}){Text("Cancel")}}
+    dismissButton={TextButton(onClick={pendingExample=null}){Text(ui("Cancel"))}}
    )
   }
   if(deleteEntry && selected!=null)AlertDialog(
@@ -543,12 +557,12 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     val keys=history.keys().asSequence().filter{it.startsWith(term.lowercase()+":")}.toList()
     keys.forEach{history.remove(it)};saveProgress(history.toString())
     selected=null;deleteEntry=false
-   }){Text("Delete",color=Color(0xFFAE5A68))}},
-   dismissButton={TextButton(onClick={deleteEntry=false}){Text("Cancel")}}
+   }){Text(ui("Delete"),color=Color(0xFFAE5A68))}},
+   dismissButton={TextButton(onClick={deleteEntry=false}){Text(ui("Cancel"))}}
   )
   if(editEntry && selected!=null)AlertDialog(
    onDismissRequest={editEntry=false},
-   title={Text("Edit term")},
+   title={Text(ui("Edit term"))},
    text={
     Column(Modifier.heightIn(max=480.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(8.dp)){
      Text("Edit basic details below, or open Advanced to edit explanations and exercises. Keep skill IDs unchanged to preserve review progress.",fontSize=13.sp,color=Muted)
@@ -588,11 +602,11 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      selected=entries.find{it.term==term};editEntry=false
     }catch(e:Exception){editorError=e.message?:"Invalid JSON"}
    }){Text("Save")}},
-   dismissButton={TextButton(onClick={editEntry=false}){Text("Cancel")}}
+   dismissButton={TextButton(onClick={editEntry=false}){Text(ui("Cancel"))}}
   )
   if(editingPersonalNote!=null && selected!=null) AlertDialog(
    onDismissRequest={editingPersonalNote=null},
-   title={Text("Edit note")},
+   title={Text(ui("Edit note"))},
    text={OutlinedTextField(value=personalNoteDraft,onValueChange={personalNoteDraft=it},modifier=Modifier.fillMaxWidth(),minLines=4)},
    confirmButton={TextButton(onClick={
     val item=selected!!
@@ -615,8 +629,8 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     }
     library=all.toString();save(library);entries=parseEntries(library)
     selected=entries.find{it.term==item.term};editingPersonalNote=null
-   },enabled=personalNoteDraft.isNotBlank()){Text("Save changes")}},
-   dismissButton={TextButton(onClick={editingPersonalNote=null}){Text("Cancel")}}
+   },enabled=personalNoteDraft.isNotBlank()){Text(ui("Save changes"))}},
+   dismissButton={TextButton(onClick={editingPersonalNote=null}){Text(ui("Cancel"))}}
   )
   if(deletePersonalNote!=null && selected!=null) AlertDialog(
    onDismissRequest={deletePersonalNote=null},
@@ -640,8 +654,8 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     }
     library=all.toString();save(library);entries=parseEntries(library)
     selected=entries.find{it.term==item.term};deletePersonalNote=null
-   }){Text("Delete")}},
-   dismissButton={TextButton(onClick={deletePersonalNote=null}){Text("Cancel")}}
+   }){Text(ui("Delete"))}},
+   dismissButton={TextButton(onClick={deletePersonalNote=null}){Text(ui("Cancel"))}}
   )
   if(showPaste) AlertDialog(onDismissRequest={showPaste=false},title={Text("Import study response")},text={
    Column(verticalArrangement=Arrangement.spacedBy(12.dp)){
@@ -658,7 +672,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      OutlinedTextField(value=jsonText,onValueChange={jsonText=it},modifier=Modifier.fillMaxWidth().heightIn(min=100.dp,max=180.dp),placeholder={Text("Or paste a short JSON response here")},maxLines=5)
     }
    }
-  },confirmButton={TextButton(onClick={merge(jsonText)},enabled=jsonText.isNotBlank()){Text("Import")}},dismissButton={TextButton(onClick={showPaste=false}){Text("Cancel")}})
+  },confirmButton={TextButton(onClick={merge(jsonText)},enabled=jsonText.isNotBlank()){Text("Import")}},dismissButton={TextButton(onClick={showPaste=false}){Text(ui("Cancel"))}})
 
  }
 }
