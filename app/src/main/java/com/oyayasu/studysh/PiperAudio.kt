@@ -149,7 +149,7 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
   verticalArrangement=Arrangement.spacedBy(18.dp)){
   Row(verticalAlignment=Alignment.CenterVertically){
    IconButton(onClick=onBack){Icon(Icons.Outlined.ArrowBack,"Back")}
-   Text("Voice settings",style=MaterialTheme.typography.headlineSmall)
+   Text(ui("Voice settings"),style=MaterialTheme.typography.headlineSmall)
   }
   Text("Piper TTS · On-device, offline speech after downloading a voice.")
   PIPER_VOICES.forEach{voice->
@@ -165,8 +165,8 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
        Button(onClick={piper.select(voice)},enabled=piper.activeVoice!=voice.id){
         Text(if(piper.activeVoice==voice.id)"Selected" else "Select")
        }
-       OutlinedButton(onClick={piper.speak("The artist uses overlapping lines to suggest depth.")}){Text("Preview")}
-      }else Button(onClick={piper.download(voice)},enabled=piper.downloading==null){Text("Download")}
+       OutlinedButton(onClick={piper.speak("The artist uses overlapping lines to suggest depth.")}){Text(ui("Preview"))}
+      }else Button(onClick={piper.download(voice)},enabled=piper.downloading==null){Text(ui("Download"))}
      }
     }
    }
