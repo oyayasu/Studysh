@@ -44,7 +44,9 @@ class MainActivity:ComponentActivity(){
    read={getPreferences(MODE_PRIVATE).getString("library","{\"schemaVersion\":\"1.0\",\"entries\":[]}")?:""},
    save={getPreferences(MODE_PRIVATE).edit().putString("library",it).apply()},
    readProgress={getPreferences(MODE_PRIVATE).getString("practice_progress","{}")?:"{}"},
-   saveProgress={getPreferences(MODE_PRIVATE).edit().putString("practice_progress",it).apply()}
+   saveProgress={getPreferences(MODE_PRIVATE).edit().putString("practice_progress",it).apply()},
+   readLanguage={getPreferences(MODE_PRIVATE).getString("study_language","English")?:"English"},
+   saveLanguage={getPreferences(MODE_PRIVATE).edit().putString("study_language",it).apply()}
   ) }
  }
 }
@@ -111,15 +113,22 @@ private fun parseEntries(raw:String):List<Entry>{
   Entry(obj.optString("term"),obj.optString("pronunciation"),obj.optString("status",""),notes,obj.toString(),obj.optString("partOfSpeech"),obj.optString("language","English"))
  }.filter { it.term.isNotBlank() }
 }
-private fun prompt(queries:List<StudyQuery>):String {
+private fun prompt(queries:List<StudyQuery>,language:String):String {
  val requested=JSONArray()
  queries.filter{it.term.isNotBlank()}.forEach { q ->
   requested.put(JSONObject().put("term",q.term.trim()).put("context",q.context.trim())
    .put("originalSentence",q.sentence.trim()).put("specificQuestion",q.doubt.trim()))
  }
+ val target=when(language){"Japanese"->"natural Japanese";"Spanish"->"natural Latin American Spanish";else->"natural American English"}
+ val sampleLanguage=when(language){"Japanese"->"Japanese";"Spanish"->"Spanish";else->"English"}
+ val languageGuidance=when(language){
+  "Japanese"->"Teach natural Japanese: kana and kanji, readings when useful, particles, verb forms, politeness levels, sentence structure, collocations and idiomatic usage. Provide romaji only when it helps pronunciation, never instead of Japanese writing. Avoid inventing exact one-to-one equivalents of Portuguese grammar."
+  "Spanish"->"Teach natural Latin American Spanish, noting major regional variation when it changes usage. Cover gender, agreement, verb conjugations, prepositions, register, collocations and false cognates with Brazilian Portuguese. Do not overstate differences between regional varieties."
+  else->"Teach natural American English, including register, constructions, collocations and idiomatic use."
+ }
  return """
 ROLE
-You are a private teacher of natural American English for a Brazilian Portuguese learner. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
+You are a private teacher of ${target} for a Brazilian Portuguese learner. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
 
 REQUESTS — analyze each independently; context and source sentence belong ONLY to their own term:
 ${requested.toString(2)}
@@ -129,25 +138,29 @@ PEDAGOGY — follow all principles, but select only relevant material per term:
 2. If a context is provided, explain that sense FIRST and explain its role in the original sentence if provided. Context is a freely written subject or situation, not a media category, and is a STARTING POINT, never a restriction. Expand to other useful senses and ordinary contexts. If a specificQuestion is provided, answer it directly while still teaching the necessary foundations. If parentheses mark part of an expression, prioritize that part within the whole construction. If the source is incomplete, do not invent intent; acknowledge genuine ambiguity only where needed.
 3. Compare near alternatives ONLY when it changes interpretation or word choice. Explain differences in connotation, intensity, register, frequency, naturalness, syntax, and Portuguese interference. Do not invent hard distinctions where words overlap.
 4. Teach productive constructions explicitly: TERM + preposition/complement/clause, what can fill each slot, important restrictions, related forms, derived constructions, and typical collocations. Distinguish productive grammar from fixed phrases and typical word partnerships. Cover the important patterns without endless interchangeable examples.
-5. Give genuinely natural American English sentences paired with idiomatic Brazilian Portuguese. Each example must add something: a basic use, variation, nuance, another context, or restriction. Explain significant peculiarities immediately. Avoid contrived sentences.
+5. Give genuinely natural ${sampleLanguage} sentences paired with idiomatic Brazilian Portuguese. Each example must add something: a basic use, variation, nuance, another context, or restriction. Explain significant peculiarities immediately. Avoid contrived sentences.
 6. Address realistic mistakes: unnatural literal translation, incorrect prepositions, misleading near synonyms, inappropriate formality, and constructions that are possible but unusual. Never label uncommon language as categorically wrong.
 7. Adapt depth to complexity; anticipate useful doubts without repetition, trivia, etymology, generic introductions, inspirational language, conclusions, or compulsory sections. Do NOT put quizzes inside the lesson: exercises are a separate dataset.
-8. Write primarily in clear Brazilian Portuguese, preserving English terms, patterns, and example sentences. Use compact, elegant Markdown: **bold** for central patterns, *italics* when helpful, short paragraphs and lists only when useful. Order ideas so one leads logically to the next. Keep the reading experience like a well-formatted ChatGPT teaching response.
+8. Write primarily in clear Brazilian Portuguese, preserving ${sampleLanguage} terms, patterns, and example sentences. Use compact, elegant Markdown: **bold** for central patterns, *italics* when helpful, short paragraphs and lists only when useful. Order ideas so one leads logically to the next. Keep the reading experience like a well-formatted ChatGPT teaching response.
 9. Before finalizing, verify that the learner can understand the concept, recognize it across contexts, distinguish important alternatives, identify its natural constructions and collocations, and build original sentences.
+
+LANGUAGE-SPECIFIC GUIDANCE
+${languageGuidance}
+All entries MUST set "language" to "${sampleLanguage}". The target language is ${sampleLanguage}; never generate English-only teaching examples for Japanese or Spanish.
 
 EXERCISE DESIGN
 Generate a compact but meaningful practice bank grounded in the ACTUAL taught meanings, patterns and nuances. Prefer these modes:
-- "complete": choose the missing word/preposition or phrase in a natural English sentence;
+- "complete": choose the missing word/preposition or phrase in a natural ${sampleLanguage} sentence;
 - "build": assemble a natural sentence from shuffled word/phrase tiles;
 - "choice": choose the most natural expression in a given context.
 Use "recognition", "construction", "nuance", or "production" as the skill, selecting what the question genuinely tests.
-For each exercise, give a stable ID unique within its entry, a skillId matching one of the knowledge skills, clear English instructions, an optional ptPrompt for meaning/context, answer and short Brazilian Portuguese explanation of WHY. For multiple-choice: exactly one unambiguously best answer, plausible distractors, and avoid accidental alternative correct readings. For build: tiles must contain exactly the fragments needed, with an unambiguous order and a canonical answer; do not use punctuation as separate tiles. No misleading artificial sentences. Include enough variety to test recognition and pattern use, without fixed quotas or duplicating the same fact.
+For each exercise, give a stable ID unique within its entry, a skillId matching one of the knowledge skills, clear ${sampleLanguage} instructions, an optional ptPrompt for meaning/context, answer and short Brazilian Portuguese explanation of WHY. For multiple-choice: exactly one unambiguously best answer, plausible distractors, and avoid accidental alternative correct readings. For build: tiles must contain exactly the fragments needed, with an unambiguous order and a canonical answer; do not use punctuation as separate tiles. No misleading artificial sentences. Include enough variety to test recognition and pattern use, without fixed quotas or duplicating the same fact.
 Knowledge skill IDs must be short stable semantic identifiers (e.g. "meaning-transfer", "pattern-convey-to"), not positional numbers. Patterns and exercises reference these IDs. Never claim that multiple-choice success alone proves productive mastery.
 Do not generate arbitrary spaced-repetition intervals, scores, timestamps, mastery or review dates. Those belong to the app's LOCAL progress store and future FSRS scheduler, not AI content.
 The AI cannot reliably evaluate unrestricted original sentences using exact-string comparison. Do not create open-ended exercises requiring automatic semantic grading.
 
 OUTPUT — STRICT, COMPLETE JSON ONLY, no fences or commentary.
-Use schemaVersion "3.0", with this example as a STRUCTURAL MODEL, not a mandatory set of sections or sample content:
+Use schemaVersion "3.0", with this English example as a STRUCTURAL MODEL only. Translate/adapt every sample term, example, answer, tile, skill and exercise into ${sampleLanguage} when the selected language is not English:
 {
  "schemaVersion":"3.0",
  "entries":[{
@@ -175,11 +188,12 @@ Use schemaVersion "3.0", with this example as a STRUCTURAL MODEL, not a mandator
 For blocks, titles are free and sections are optional. Style colors: purple=concept, blue=patterns, green=examples, yellow=nuance, rose=caveat, plain=neutral. Do not repeat the structured knowledge data verbatim in every block. Knowledge is machine-readable metadata; blocks are the readable lesson. Each exercise must refer to a defined skillId. Every answer must be exactly reconstructible from options or tiles. Keep JSON compact enough to finish ALL entries; prefer fewer strong exercises and precise explanations over excessive volume. Use standard JSON escaping only. No trailing commas, no Markdown fences, no incomplete entries.
 """.trimIndent()
 }
-@Composable private fun StudyshApp(read:()->String,save:(String)->Unit,readProgress:()->String,saveProgress:(String)->Unit){
+@Composable private fun StudyshApp(read:()->String,save:(String)->Unit,readProgress:()->String,saveProgress:(String)->Unit,readLanguage:()->String,saveLanguage:(String)->Unit){
  var library by remember { mutableStateOf(read()) }
  var entries by remember { mutableStateOf(runCatching { parseEntries(library) }.getOrDefault(emptyList())) }
  var page by remember { mutableStateOf(1) }
  var filter by remember { mutableStateOf("All") }
+ var studyLanguage by remember { mutableStateOf(readLanguage().takeIf{it in listOf("English","Japanese","Spanish")} ?: "English") }
  var compact by remember { mutableStateOf(true) }
  var selected by remember { mutableStateOf<Entry?>(null) }
  var search by remember { mutableStateOf("") }
@@ -273,7 +287,24 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     IconButton(onClick={backupExporter.launch("studysh-backup.json")}){Icon(Icons.Outlined.SaveAlt,"Export backup")}
     IconButton(onClick={picker.launch("*/*")}){Icon(Icons.Outlined.FileUpload,"Import JSON or backup")}
    }
-   if(page==5){
+   if(page==6){
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+     Row(verticalAlignment=Alignment.CenterVertically){IconButton(onClick={page=1}){Icon(Icons.Outlined.ArrowBack,"Back")};Text("Settings",fontSize=26.sp,fontWeight=FontWeight.Bold)}
+     Text("Language to study",fontSize=19.sp,fontWeight=FontWeight.SemiBold)
+     Text("Choose the language used by new study prompts. Existing lessons remain unchanged.",color=Muted,fontSize=14.sp)
+     listOf("English","Japanese","Spanish").forEach{language->
+      Surface(onClick={studyLanguage=language;saveLanguage(language)},shape=RoundedCornerShape(16.dp),color=if(studyLanguage==language)Color(0xFFF1EAFB) else Color.White,border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE4DEEB))){
+       Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
+        Text(language,modifier=Modifier.weight(1f),fontWeight=if(studyLanguage==language)FontWeight.Bold else FontWeight.Normal)
+        if(studyLanguage==language)Icon(Icons.Outlined.CheckCircle,"Selected",tint=Color(0xFF956DCE))
+       }
+      }
+     }
+     Text("Lessons layout",fontSize=19.sp,fontWeight=FontWeight.SemiBold)
+     Row(verticalAlignment=Alignment.CenterVertically){Text("Compact layout",modifier=Modifier.weight(1f));Switch(checked=compact,onCheckedChange={compact=it})}
+     OutlinedButton(onClick={page=5},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.RecordVoiceOver,null);Text(" Voice settings")}
+    }
+   }else if(page==5){
     PiperVoiceSettings(piper,onBack={page=3})
    }else if(page==4){
     BookCapture(maxStudies=(5-fields.count{it.term.isNotBlank()}).coerceAtLeast(0),onClose={page=0},onAdd={captured->
@@ -355,7 +386,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" Capture from book")}
        Spacer(Modifier.height(8.dp))
        Spacer(Modifier.height(16.dp))
-       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()})));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
+       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()},studyLanguage)));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
        Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
@@ -415,7 +446,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      }
      else->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
       item{
-       Row(verticalAlignment=Alignment.CenterVertically){Text("Lessons",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f));IconButton(onClick={compact=!compact}){Icon(Icons.Outlined.Tune,"Layout")}}
+       Row(verticalAlignment=Alignment.CenterVertically){Text("Lessons",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))}
        Spacer(Modifier.height(10.dp))
        Surface(color=Color(0xFFF1EAFB),shape=RoundedCornerShape(22.dp)){
         Row(Modifier.fillMaxWidth().padding(horizontal=18.dp,vertical=12.dp),verticalAlignment=Alignment.CenterVertically){
