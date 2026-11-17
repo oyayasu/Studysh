@@ -55,7 +55,7 @@ class StudyFsrsTest {
  @Test fun dueDateAndRetentionAreWellDefined(){
   assertEquals(0L,StudyFsrs.dueAt(null))
   val card=StudyFsrs.review(null,4,start)
-  assertEquals(null,StudyFsrs.retention(card,start))
+  assertEquals(1.0,StudyFsrs.retention(card,start)!!,1e-9)
   assertTrue(StudyFsrs.retention(card,start+day)!! in 0.0..1.0)
  }
 }
