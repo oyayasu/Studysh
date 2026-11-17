@@ -261,7 +261,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  }
  MaterialTheme(colorScheme=lightColorScheme(primary=Ink,background=Canvas,surface=Color.White,onSurface=Ink)){
   Column(Modifier.fillMaxSize().background(Canvas)){
-   Row(Modifier.fillMaxWidth().padding(horizontal=22.dp, vertical=18.dp),verticalAlignment=Alignment.CenterVertically){
+   if(page!=4)Row(Modifier.fillMaxWidth().padding(horizontal=22.dp, vertical=18.dp),verticalAlignment=Alignment.CenterVertically){
     Icon(Icons.Outlined.Layers,null,tint=Color(0xFF8C60CB),modifier=Modifier.size(28.dp))
     Spacer(Modifier.width(10.dp))
     Text("Studysh",fontSize=27.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
