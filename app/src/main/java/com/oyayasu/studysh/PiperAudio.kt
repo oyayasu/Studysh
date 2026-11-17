@@ -42,6 +42,23 @@ class StudyshPiper(private val context:Context){
  var message by mutableStateOf("");private set
  var revision by mutableIntStateOf(0);private set
  private val root=File(context.filesDir,"piper-voices").apply{mkdirs()}
+ private fun ensureEspeakData(){
+  val destination=File(context.filesDir,"espeak-ng-data")
+  val marker=File(destination,".studysh-ready")
+  if(marker.isFile)return
+  fun copyAssets(assetPath:String,target:File){
+   val children=context.assets.list(assetPath)?:emptyArray()
+   if(children.isEmpty()){
+    target.parentFile?.mkdirs()
+    context.assets.open(assetPath).use{input->target.outputStream().use{input.copyTo(it)}}
+   }else{
+    target.mkdirs()
+    children.forEach{copyAssets("$assetPath/$it",File(target,it))}
+   }
+  }
+  copyAssets("espeak-ng-data",destination)
+  marker.writeText("ready")
+ }
  private fun model(voice:PiperVoice)=File(root,voice.base+".onnx")
  private fun config(voice:PiperVoice)=File(root,voice.base+".onnx.json")
  fun installed(voice:PiperVoice):Boolean{
@@ -111,6 +128,7 @@ class StudyshPiper(private val context:Context){
   worker.execute{
    try{
     if(engineVoice!=voice.id){
+     ensureEspeakData()
      player.stop();engine?.close()
      engine=PiperEngine(PiperCreateOptions(modelPath=model(voice).absolutePath,
       configPath=config(voice).absolutePath,
