@@ -645,7 +645,7 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
  Column(modifier,verticalArrangement=Arrangement.spacedBy(3.dp)){
   BasicTextField(
    value=value,
-   onValueChange={updated->value=updated.copy(text=sentence)},
+   onValueChange={updated->value=updated.copy(annotatedString=AnnotatedString(sentence))},
    readOnly=true,
    textStyle=androidx.compose.ui.text.TextStyle(color=Ink,fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp),
    modifier=Modifier.fillMaxWidth()
