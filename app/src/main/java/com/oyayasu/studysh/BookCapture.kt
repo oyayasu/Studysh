@@ -205,7 +205,7 @@ fun BookCapture(maxStudies:Int=5,onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit
    modifier=Modifier.fillMaxWidth(),maxLines=3,minLines=1)
   if(phase==1)Text("Context: $contextDraft",fontSize=12.sp,maxLines=2,color=Color.Gray)
   Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-   Button(onClick={confirm},enabled=editText.isNotBlank(),modifier=Modifier.weight(1f)){Text(if(phase==0)"Confirm context" else "Add study")}
+   Button(onClick={confirm()},enabled=editText.isNotBlank(),modifier=Modifier.weight(1f)){Text(if(phase==0)"Confirm context" else "Add study")}
    if(captured.isNotEmpty())Button(onClick={onAdd(captured)},modifier=Modifier.weight(1f)){Text("Use ${captured.size} studies")}
   }
  }
