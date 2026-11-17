@@ -2,6 +2,8 @@ package com.oyayasu.studysh
 
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import androidx.exifinterface.media.ExifInterface
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -50,7 +52,17 @@ private fun loadBookBitmap(context:android.content.Context,uri:Uri):Bitmap? =
   val sample=generateSequence(1){it*2}.takeWhile{
    options.outWidth/it>2300 || options.outHeight/it>2300
   }.lastOrNull()?:1
-  BitmapFactory.decodeByteArray(bytes,0,bytes.size,BitmapFactory.Options().apply{inSampleSize=sample})
+  val decoded=BitmapFactory.decodeByteArray(bytes,0,bytes.size,BitmapFactory.Options().apply{inSampleSize=sample})
+  if(decoded==null)null else {
+   val orientation=ExifInterface(bytes.inputStream()).getAttributeInt(ExifInterface.TAG_ORIENTATION,ExifInterface.ORIENTATION_NORMAL)
+   val degrees=when(orientation){
+    ExifInterface.ORIENTATION_ROTATE_90->90f
+    ExifInterface.ORIENTATION_ROTATE_180->180f
+    ExifInterface.ORIENTATION_ROTATE_270->270f
+    else->0f
+   }
+   if(degrees==0f)decoded else Bitmap.createBitmap(decoded,0,0,decoded.width,decoded.height,Matrix().apply{postRotate(degrees)},true)
+  }
  }
 
 @Composable
@@ -148,8 +160,9 @@ fun BookCapture(maxStudies:Int=5,onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit
         val newly=words.indices.filter{i->
          val box=words[i].box
          stroke.any{p->
-          val x=p.x/scale;val y=p.y/scale
-          x>=box.left-12 && x<=box.right+12 && y>=box.top-12 && y<=box.bottom+12
+          val radius=14.dp.toPx()
+          p.x>=box.left*scale-radius && p.x<=box.right*scale+radius &&
+           p.y>=box.top*scale-radius && p.y<=box.bottom*scale+radius
          }
         }.toSet()
         selected=selected+newly
