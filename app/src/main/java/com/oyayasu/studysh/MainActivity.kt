@@ -476,10 +476,10 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
       }
       items(visible.size){i->
        val entry=visible[i]
-       Row(Modifier.fillMaxWidth().background(Pastels[i%Pastels.size],RoundedCornerShape(22.dp)).clickable{selected=entry}.padding(18.dp),verticalAlignment=Alignment.CenterVertically){
+       Row(Modifier.fillMaxWidth().background(Pastels[i%Pastels.size],RoundedCornerShape(22.dp)).clickable{selected=entry}.padding(if(compact)14.dp else 23.dp),verticalAlignment=Alignment.CenterVertically){
         Icon(Icons.Outlined.BookmarkBorder,null,modifier=Modifier.size(25.dp))
         Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)){Text(entry.term,fontSize=21.sp,fontWeight=FontWeight.Bold);Text(entry.pronunciation.ifBlank{"${entry.notes.size} explanation sections"},fontSize=13.sp,color=Muted,maxLines=1)}
+        Column(Modifier.weight(1f)){Text(entry.term,fontSize=if(compact)19.sp else 23.sp,fontWeight=FontWeight.Bold);Text(entry.pronunciation.ifBlank{"${entry.notes.size} explanation sections"},fontSize=13.sp,color=Muted,maxLines=1)}
         Surface(color=Color.White.copy(alpha=.65f),shape=RoundedCornerShape(50)){Text(when(entry.language.lowercase()){"japanese"->"JA";"spanish"->"ES";else->"EN"},Modifier.padding(horizontal=9.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
        }
       }
