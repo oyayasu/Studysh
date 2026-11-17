@@ -347,8 +347,6 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" Capture from book")}
        Spacer(Modifier.height(8.dp))
-       OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" Capture from book")}
-       Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
      }
