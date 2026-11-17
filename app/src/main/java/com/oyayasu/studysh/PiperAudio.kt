@@ -26,7 +26,7 @@ data class PiperVoice(val id:String,val label:String,val region:String,val bytes
  val configUrl:String get()="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/$region/${id.substringAfter('-').substringBeforeLast('-')}/high/$base.onnx.json?download=true"
 }
 val PIPER_VOICES=listOf(
- PiperVoice("en_US-libritts-high","LibriTTS · High (United States)","en_US",137_000_000L,"9127a559e11603f10b366d1a20ac7426826081dbc521de4c2420c57728d73f0f"),
+ PiperVoice("en_US-libritts-high","LibriTTS · High (United States)","en_US",137_000_000L),
  PiperVoice("en_GB-cori-high","Cori · High (United Kingdom)","en_GB",114_000_000L)
 )
 class StudyshPiper(private val context:Context){
