@@ -37,8 +37,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          bash piper-kotlin/scripts/fetch-native-deps.sh
-          bash piper-kotlin/scripts/stage-espeak-data.sh
+          bash piper-kotlin/scripts/fetch-native-deps.sh 2>&1 | tee "$RUNNER_TEMP/studysh-piper-prep.log"
+          bash piper-kotlin/scripts/stage-espeak-data.sh 2>&1 | tee -a "$RUNNER_TEMP/studysh-piper-prep.log"
           mkdir -p app/src/main/assets/espeak-ng-data
           cp -a piper-kotlin/third-party/espeak-ng/build/espeak-ng-data/. app/src/main/assets/espeak-ng-data/
       - name: Run unit tests
@@ -92,7 +92,7 @@ jobs:
             echo "- Commit: \`${GITHUB_SHA}\`"
             echo "- Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
             echo
-            for logfile in "$RUNNER_TEMP/studysh-tests.log" "$RUNNER_TEMP/studysh-build.log"; do
+            for logfile in "$RUNNER_TEMP/studysh-piper-prep.log" "$RUNNER_TEMP/studysh-tests.log" "$RUNNER_TEMP/studysh-build.log"; do
               if [ -f "$logfile" ]; then
                 echo "## $(basename "$logfile")"
                 echo '~~~text'
