@@ -268,7 +268,13 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     IconButton(onClick={backupExporter.launch("studysh-backup.json")}){Icon(Icons.Outlined.SaveAlt,"Export backup")}
     IconButton(onClick={picker.launch("*/*")}){Icon(Icons.Outlined.FileUpload,"Import JSON or backup")}
    }
-   if(selected!=null){
+   if(page==4){
+    BookCapture(maxStudies=(5-fields.count{it.term.isNotBlank()}).coerceAtLeast(0),onClose={page=0},onAdd={captured->
+     fields=fields.filter{it.term.isNotBlank()}+captured
+     page=0
+     error="Added ${captured.size} book study request(s). Review and copy the prompt."
+    })
+   }else if(selected!=null){
     val item=selected!!
     Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically){
      IconButton(onClick={selected=null}){Icon(Icons.Outlined.ArrowBack,"Back")}
@@ -338,6 +344,8 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        OutlinedButton(onClick={fields=fields+StudyQuery()},enabled=fields.size<5,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Add,null);Text(" Add term")}
        Spacer(Modifier.height(16.dp))
        Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()})));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
+       Spacer(Modifier.height(8.dp))
+       OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" Capture from book")}
        Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" Capture from book")}
        Spacer(Modifier.height(8.dp))
