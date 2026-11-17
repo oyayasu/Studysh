@@ -54,7 +54,7 @@ private fun loadBookBitmap(context:android.content.Context,uri:Uri):Bitmap? =
  }
 
 @Composable
-fun BookCapture(onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit){
+fun BookCapture(maxStudies:Int=5,onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit){
  val context=LocalContext.current
  var bitmap by remember{mutableStateOf<Bitmap?>(null)}
  var words by remember{mutableStateOf<List<BookWord>>(emptyList())}
@@ -62,16 +62,12 @@ fun BookCapture(onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit){
  var busy by remember{mutableStateOf(false)}
  var error by remember{mutableStateOf("")}
  var phase by remember{mutableIntStateOf(0)}
- var contextText by remember{mutableStateOf("")}
  var editText by remember{mutableStateOf("")}
  var contextDraft by remember{mutableStateOf("")}
- var termDraft by remember{mutableStateOf("")}
  var captured by remember{mutableStateOf<List<StudyQuery>>(emptyList())}
  var selected by remember{mutableStateOf<Set<Int>>(emptySet())}
  var strokes by remember{mutableStateOf<List<List<Offset>>>(emptyList())}
  var currentStroke by remember{mutableStateOf<List<Offset>>(emptyList())}
- var viewWidth by remember{mutableFloatStateOf(1f)}
- var viewHeight by remember{mutableFloatStateOf(1f)}
  val recognizer=remember{TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)}
  DisposableEffect(recognizer){onDispose{recognizer.close()}}
  fun recognize(uri:Uri){
@@ -112,9 +108,9 @@ fun BookCapture(onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit){
   error="";selected=emptySet();strokes=emptyList();currentStroke=emptyList()
   if(phase==0){contextDraft=text;phase=1}
   else {
-   termDraft=text
+   if(captured.size>=maxStudies){error="Prompt limit reached. Use your saved studies before capturing more.";return}
    captured=captured+StudyQuery(term=text,sentence=contextDraft)
-   phase=0;contextDraft="";termDraft=""
+   phase=0;contextDraft=""
   }
   editText=""
  }
@@ -134,7 +130,7 @@ fun BookCapture(onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit){
   if(busy)LinearProgressIndicator(Modifier.fillMaxWidth())
   if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error,fontSize=13.sp)
   Text(if(phase==0)"1 · Paint the complete sentence" else "2 · Paint the word or expression",fontWeight=FontWeight.SemiBold)
-  Text("Paint across one or more lines, then confirm. Each pair creates one study request.",fontSize=12.sp,color=Color.Gray)
+  Text("Paint across one or more lines, then confirm. Each pair creates one study request (up to $maxStudies).",fontSize=12.sp,color=Color.Gray)
   val b=bitmap
   if(b!=null){
    BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)){
@@ -143,7 +139,6 @@ fun BookCapture(onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit){
     val scale=min(containerW/b.width,containerH/b.height)
     val imageW=b.width*scale
     val imageH=b.height*scale
-    viewWidth=imageW;viewHeight=imageH
     Box(Modifier.align(Alignment.Center).size(with(androidx.compose.ui.platform.LocalDensity.current){imageW.toDp()},with(androidx.compose.ui.platform.LocalDensity.current){imageH.toDp()})){
      Image(bitmap=b.asImageBitmap(),contentDescription="Book page",modifier=Modifier.fillMaxSize())
      Canvas(Modifier.fillMaxSize().pointerInput(words,phase,scale){
