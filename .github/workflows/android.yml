@@ -3,6 +3,9 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+concurrency:
+  group: studysh-android-main
+  cancel-in-progress: false
 permissions:
   contents: write
   issues: write
@@ -43,8 +46,15 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release delete android-dev --yes --cleanup-tag || true
-          gh release create android-dev app/build/outputs/apk/debug/*.apk --title "Studysh Android - Development" --notes "Debug-signed APK for direct installation and testing." --prerelease --target "${GITHUB_SHA}"
+          set -e
+          apk=$(find app/build/outputs/apk/debug -maxdepth 1 -name '*.apk' -print -quit)
+          test -n "$apk"
+          if gh release view android-dev --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload android-dev "$apk" --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit android-dev --repo "$GITHUB_REPOSITORY" --title "Studysh Android - Development" --notes "Latest successful debug APK. Commit: ${GITHUB_SHA}" --prerelease
+          else
+            gh release create android-dev "$apk" --repo "$GITHUB_REPOSITORY" --title "Studysh Android - Development" --notes "Latest successful debug APK. Commit: ${GITHUB_SHA}" --prerelease --target "${GITHUB_SHA}"
+          fi
       - name: Record successful release
         if: success()
         shell: bash
