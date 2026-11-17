@@ -18,15 +18,29 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+      - name: Checkout Piper native Android engine
+        uses: actions/checkout@v4
+        with:
+          repository: piper-tts-apps/piper-kotlin
+          path: piper-kotlin
+          submodules: recursive
       - name: Check Android SDK
         run: |
           echo "ANDROID_HOME=$ANDROID_HOME"
           test -d "$ANDROID_HOME"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses < /dev/null || true
-          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0"
+          "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
       - uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: '8.9'
+          gradle-version: '8.11.1'
+      - name: Prepare Piper native dependencies and English phonemizer
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash piper-kotlin/scripts/fetch-native-deps.sh
+          bash piper-kotlin/scripts/stage-espeak-data.sh
+          mkdir -p app/src/main/assets/espeak-ng-data
+          cp -a piper-kotlin/third-party/espeak-ng/build/espeak-ng-data/. app/src/main/assets/espeak-ng-data/
       - name: Run unit tests
         shell: bash
         run: |
