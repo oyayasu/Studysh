@@ -42,6 +42,7 @@ jobs:
           name: Studysh-Android-debug
           path: app/build/outputs/apk/debug/*.apk
       - name: Publish development release
+        continue-on-error: true
         if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -55,7 +56,7 @@ jobs:
           else
             gh release create android-dev "$apk" --repo "$GITHUB_REPOSITORY" --title "Studysh Android - Development" --notes "Latest successful debug APK. Commit: ${GITHUB_SHA}" --prerelease --target "${GITHUB_SHA}"
           fi
-      - name: Record successful release
+      - name: Record successful APK build
         if: success()
         shell: bash
         env:
@@ -63,7 +64,7 @@ jobs:
         run: |
           issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"[CI] Android build failure" in:title' --json number --jq '.[0].number' || true)
           if [ -n "$issue" ]; then
-            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --comment "Android APK successfully compiled and released for commit ${GITHUB_SHA}: https://github.com/${GITHUB_REPOSITORY}/releases/tag/android-dev"
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --comment "Android APK successfully compiled and uploaded as a workflow artifact for commit ${GITHUB_SHA}: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
           fi
       - name: Record failure for independent diagnostics
         if: failure()
