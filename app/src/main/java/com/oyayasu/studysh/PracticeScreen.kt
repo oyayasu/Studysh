@@ -152,7 +152,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
     }
    }
   } else if(current==null){
-   Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.Center){
+   Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){
     Icon(Icons.Outlined.CheckCircle,null,tint=Lavender,modifier=Modifier.size(58.dp))
     Text("Session complete",fontSize=26.sp,fontWeight=FontWeight.Bold)
     Text("$correctCount of $reviewed correct on the first check.",color=Soft)
