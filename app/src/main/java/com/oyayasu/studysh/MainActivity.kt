@@ -288,7 +288,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     IconButton(onClick={picker.launch("*/*")}){Icon(Icons.Outlined.FileUpload,"Import JSON or backup")}
    }
    if(page==6){
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
      Row(verticalAlignment=Alignment.CenterVertically){IconButton(onClick={page=1}){Icon(Icons.Outlined.ArrowBack,"Back")};Text("Settings",fontSize=26.sp,fontWeight=FontWeight.Bold)}
      Text("Language to study",fontSize=19.sp,fontWeight=FontWeight.SemiBold)
      Text("Choose the language used by new study prompts. Existing lessons remain unchanged.",color=Muted,fontSize=14.sp)
@@ -394,7 +394,10 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      2->Box(Modifier.weight(1f)){StudyshPractice(library,readProgress,saveProgress)}
      1->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
       item{
-       Text("Welcome to Studysh",fontSize=28.sp,fontWeight=FontWeight.Bold)
+       Row(verticalAlignment=Alignment.CenterVertically){
+        Text("Welcome to Studysh",fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+        IconButton(onClick={page=6}){Icon(Icons.Outlined.Tune,"Settings")}
+       }
        Text("Understand words deeply. Remember them naturally.",fontSize=14.sp,color=Muted)
       }
       item{
@@ -460,7 +463,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        Spacer(Modifier.height(8.dp))
        OutlinedTextField(value=search,onValueChange={search=it},placeholder={Text("Search your terms")},leadingIcon={Icon(Icons.Outlined.Search,null)},modifier=Modifier.fillMaxWidth(),singleLine=true,shape=RoundedCornerShape(22.dp))
        Spacer(Modifier.height(10.dp))
-       Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){listOf("All","English","Japanese","Other").forEach{f->
+       Row(horizontalArrangement=Arrangement.spacedBy(7.dp)){listOf("All","English","Japanese","Spanish","Other").forEach{f->
         val active=filter==f
         Surface(onClick={filter=f},color=if(active)Color(0xFF956DCE) else Color.White,shape=RoundedCornerShape(50),border=if(active)null else androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE6E0EA))){
          Text(f,Modifier.padding(horizontal=12.dp,vertical=9.dp),fontSize=12.sp,color=if(active)Color.White else Ink)
@@ -469,7 +472,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
       }
       val visible=entries.filter{it.term.contains(search,true)}.filter{entry->
        val language=entry.language
-       filter=="All" || (filter=="Other" && language !in listOf("English","Japanese")) || language.equals(filter,true)
+       filter=="All" || (filter=="Other" && language !in listOf("English","Japanese","Spanish")) || language.equals(filter,true)
       }
       items(visible.size){i->
        val entry=visible[i]
@@ -477,7 +480,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
         Icon(Icons.Outlined.BookmarkBorder,null,modifier=Modifier.size(25.dp))
         Spacer(Modifier.width(16.dp))
         Column(Modifier.weight(1f)){Text(entry.term,fontSize=21.sp,fontWeight=FontWeight.Bold);Text(entry.pronunciation.ifBlank{"${entry.notes.size} explanation sections"},fontSize=13.sp,color=Muted,maxLines=1)}
-        Surface(color=Color.White.copy(alpha=.65f),shape=RoundedCornerShape(50)){Text(if(entry.language.equals("Japanese",true))"JA" else "EN",Modifier.padding(horizontal=9.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
+        Surface(color=Color.White.copy(alpha=.65f),shape=RoundedCornerShape(50)){Text(when(entry.language.lowercase()){"japanese"->"JA";"spanish"->"ES";else->"EN"},Modifier.padding(horizontal=9.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
        }
       }
       if(visible.isEmpty())item{Text(if(entries.isEmpty())"Your library is empty. Add your first study term." else "No matching terms.",color=Muted,modifier=Modifier.padding(top=16.dp))}
