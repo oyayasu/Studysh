@@ -2,6 +2,9 @@ package com.oyayasu.studysh
 
 import androidx.compose.foundation.*
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.ui.graphics.Path
 import androidx.compose.animation.core.*
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -163,12 +166,20 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
    val assembled=tiles.joinToString(" "){q.choices[it]}
    val submitted=if(q.type=="build")assembled else choice
    val correct=submitted.trim()==q.answer.trim()
-   Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
+   Column(Modifier.fillMaxSize().padding(horizontal=16.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
      IconButton(onClick={active=false}){Icon(Icons.Outlined.Close,"Leave session")}
      LinearProgressIndicator(progress={ (cursor+1).toFloat()/session.size },modifier=Modifier.weight(1f).height(8.dp),color=Lavender,trackColor=Color(0xFFEAE6EF))
      Text("${cursor+1}/${session.size}",fontSize=12.sp,color=Soft)
     }
+    Box(Modifier.fillMaxWidth().weight(0.43f),contentAlignment=Alignment.Center){
+     StudyshMascot(
+      modifier=Modifier.fillMaxHeight(0.92f).aspectRatio(1f),
+      mood=if(!checked)MascotMood.Idle else if(correct)MascotMood.Happy else MascotMood.Sad
+     )
+    }
+    Column(Modifier.fillMaxWidth().weight(0.57f).verticalScroll(rememberScrollState()),
+     verticalArrangement=Arrangement.spacedBy(12.dp)){
     Text(q.term.uppercase(),color=Lavender,fontSize=12.sp,fontWeight=FontWeight.Bold)
     Text(q.instruction,fontSize=25.sp,fontWeight=FontWeight.Bold,lineHeight=31.sp,color=Dark)
     if(q.prompt.isNotBlank())Text(q.prompt,fontSize=16.sp,lineHeight=24.sp,color=Soft)
@@ -219,6 +230,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
     }else{
      Button(onClick={suggestedRating=if(!correct)1 else if(System.currentTimeMillis()-exerciseStartedAt>45_000L)2 else 3;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Check",fontWeight=FontWeight.Bold)}
     }
+    }
    }
   }
  }
@@ -239,11 +251,17 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  }
 }
 
-@Composable fun StudyshMascot(modifier:Modifier=Modifier){
+enum class MascotMood { Idle, Happy, Sad }
+
+@Composable fun StudyshMascot(modifier:Modifier=Modifier,mood:MascotMood=MascotMood.Idle){
  val transition=rememberInfiniteTransition(label="mascot")
  val bounce by transition.animateFloat(initialValue=0f,targetValue=1f,
   animationSpec=infiniteRepeatable(animation=tween(1900,easing=FastOutSlowInEasing),repeatMode=RepeatMode.Reverse),
   label="bounce")
+ val joy by animateFloatAsState(targetValue=if(mood==MascotMood.Happy)1f else 0f,
+  animationSpec=spring(dampingRatio=Spring.DampingRatioMediumBouncy,stiffness=Spring.StiffnessLow),label="joy")
+ val sorrow by animateFloatAsState(targetValue=if(mood==MascotMood.Sad)1f else 0f,
+  animationSpec=tween(450),label="sorrow")
  val blink by transition.animateFloat(initialValue=1f,targetValue=0.07f,
   animationSpec=infiniteRepeatable(animation=keyframes{
    durationMillis=3900
@@ -254,20 +272,39 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
    1f at 3900
   },repeatMode=RepeatMode.Restart),label="blink")
  Canvas(modifier.graphicsLayer{
-  translationY=-7f*bounce
-  scaleX=1f+.035f*bounce
-  scaleY=1f-.035f*bounce
+  translationY=-7f*bounce-14f*joy*bounce+5f*sorrow
+  rotationZ=joy*8f*(bounce-.5f)-sorrow*5f
+  scaleX=1f+.035f*bounce+.12f*joy*(1f-bounce)
+  scaleY=1f-.035f*bounce+.13f*joy*bounce-.07f*sorrow
  }){
   val w=size.width;val h=size.height
   drawOval(brush=Brush.radialGradient(listOf(Color(0xFFF8EDFF),Color(0xFFD6B4F1),Color(0xFFB18BDC)),
    center=Offset(w*.38f,h*.24f),radius=w*.82f),
    topLeft=Offset(w*.07f,h*.10f),size=Size(w*.86f,h*.81f))
   drawOval(color=Color.White.copy(alpha=.36f),topLeft=Offset(w*.24f,h*.17f),size=Size(w*.38f,h*.13f))
-  drawOval(color=Color(0xFF40314E),topLeft=Offset(w*.355f,h*(.51f-.034f*blink)),
-   size=Size(w*.068f,h*.068f*blink))
-  drawOval(color=Color(0xFF40314E),topLeft=Offset(w*.575f,h*(.51f-.034f*blink)),
-   size=Size(w*.068f,h*.068f*blink))
-  drawArc(color=Color(0xFF59416C),startAngle=15f,sweepAngle=150f,useCenter=false,
-   topLeft=Offset(w*.445f,h*.55f),size=Size(w*.11f,h*.11f),style=Stroke(width=w*.022f))
+  // Eyes squash into cheerful arcs when correct, and droop when incorrect.
+  val eyeY=h*(.50f+.035f*sorrow)
+  val eyeHeight=h*(.07f*blink*(1f-.75f*joy)+.008f*joy)
+  listOf(.37f,.59f).forEach{x->
+   drawOval(color=Color(0xFF40314E),topLeft=Offset(w*x,eyeY-eyeHeight/2),
+    size=Size(w*.068f,eyeHeight.coerceAtLeast(1f)))
+  }
+  if(joy>.05f){
+   drawOval(color=Color(0xFFFFA9C9).copy(alpha=.48f*joy),
+    topLeft=Offset(w*.25f,h*.59f),size=Size(w*.13f,h*.07f))
+   drawOval(color=Color(0xFFFFA9C9).copy(alpha=.48f*joy),
+    topLeft=Offset(w*.65f,h*.59f),size=Size(w*.13f,h*.07f))
+  }
+  val mouthY=h*(.63f+.045f*sorrow)
+  val mouth=Path().apply{
+   moveTo(w*.45f,mouthY)
+   cubicTo(w*.47f,mouthY+h*(.11f*joy-.07f*sorrow+.05f),
+    w*.54f,mouthY+h*(.11f*joy-.07f*sorrow+.05f),w*.57f,mouthY)
+  }
+  drawPath(mouth,color=Color(0xFF59416C),style=Stroke(width=w*.024f,cap=androidx.compose.ui.graphics.StrokeCap.Round))
+  if(sorrow>.1f){
+   drawOval(color=Color(0xFF9BCBFA).copy(alpha=.85f*sorrow),
+    topLeft=Offset(w*.68f,h*(.57f+.09f*bounce)),size=Size(w*.035f,h*.09f))
+  }
  }
 }
