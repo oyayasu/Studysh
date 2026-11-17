@@ -11,6 +11,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -182,6 +184,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  var selected by remember { mutableStateOf<Entry?>(null) }
  var search by remember { mutableStateOf("") }
  var fields by remember { mutableStateOf(listOf(StudyQuery())) }
+ var pendingExample by remember { mutableStateOf<Pair<String,String>?>(null) }
  var error by remember { mutableStateOf("") }
  var jsonText by remember { mutableStateOf("") }
  var showPaste by remember { mutableStateOf(false) }
@@ -303,11 +306,11 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        }
       }
      }
-     items(item.notes.size){index->StudyNoteCard(item.notes[index],index,onSpeak={piper.speak(it)})}
+     items(item.notes.size){index->StudyNoteCard(item.notes[index],index,onSpeak={piper.speak(it)},onStudy={term,sentence->pendingExample=term to sentence})}
      val savedPersonal=runCatching{JSONObject(item.original).optJSONArray("personalNotes")}.getOrNull()
      if(savedPersonal!=null)items(savedPersonal.length()){index->
       val note=savedPersonal.optJSONObject(index)?.optString("text").orEmpty()
-      if(note.isNotBlank())StudyNoteCard(Note("My notes","plain",note),index,onSpeak={piper.speak(it)})
+      if(note.isNotBlank())StudyNoteCard(Note("My notes","plain",note),index,onSpeak={piper.speak(it)},onStudy={term,sentence->pendingExample=term to sentence})
      }
      item {
       Column(Modifier.fillMaxWidth().border(1.dp,Color(0xFFE5E1E9),RoundedCornerShape(20.dp)).background(Color.White,RoundedCornerShape(20.dp)).padding(16.dp)){
@@ -458,6 +461,27 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp,maxLines=4,overflow=TextOverflow.Ellipsis)
   }
+  pendingExample?.let{(term,sentence)->
+   AlertDialog(
+    onDismissRequest={pendingExample=null},
+    title={Text("Create study prompt")},
+    text={Column(verticalArrangement=Arrangement.spacedBy(10.dp)){
+     Text("Term: $term",fontWeight=FontWeight.SemiBold)
+     Text("Original sentence: $sentence",color=Muted)
+     if(fields.count{it.term.isNotBlank()}>=5)Text("Your prompt already has five terms. You can replace an empty slot or copy the current prompt first.",color=Color(0xFF9C5C39))
+    }},
+    confirmButton={TextButton(onClick={
+     val study=StudyQuery(term=term,sentence=sentence)
+     val nonempty=fields.filter{it.term.isNotBlank()}
+     if(nonempty.size<5){
+      fields=nonempty+study
+      pendingExample=null;selected=null;page=0
+      error="Added \"$term\" with its original sentence. Review your prompt."
+     }else error="The prompt supports up to five terms. Remove one before adding another."
+    },enabled=fields.count{it.term.isNotBlank()}<5){Text("Add to prompt")}},
+    dismissButton={TextButton(onClick={pendingExample=null}){Text("Cancel")}}
+   )
+  }
   if(deleteEntry && selected!=null)AlertDialog(
    onDismissRequest={deleteEntry=false},
    title={Text("Delete this term?")},
@@ -559,7 +583,7 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
  }
  append(text.substring(cursor))
 }
-@Composable private fun StudyNoteCard(note:Note,index:Int,onSpeak:(String)->Unit={}){
+@Composable private fun StudyNoteCard(note:Note,index:Int,onSpeak:(String)->Unit={},onStudy:(String,String)->Unit={_,_->}){
  val tone=when(note.type.lowercase()){
   "purple","concept","definition"->Color(0xFFF0EBF8)
   "blue","grammar","pattern","patterns"->Color(0xFFEAF2F9)
@@ -604,10 +628,36 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
    if(i>0)HorizontalDivider(color=Color(0x1C5D6064),thickness=1.dp)
    Column(verticalArrangement=Arrangement.spacedBy(5.dp)){
     Row(verticalAlignment=Alignment.CenterVertically){
-     Text(readableText(example.first),modifier=Modifier.weight(1f),fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp,color=Ink)
+     SelectableExampleSentence(readableText(example.first),Modifier.weight(1f),onStudy)
      IconButton(onClick={onSpeak(readableText(example.first))}){Icon(Icons.Outlined.VolumeUp,"Speak example")}
     }
     if(example.second.isNotBlank())Text(readableText(example.second),fontSize=14.sp,lineHeight=21.sp,color=Muted)
+   }
+  }
+ }
+}
+
+@Composable private fun SelectableExampleSentence(sentence:String,modifier:Modifier=Modifier,onStudy:(String,String)->Unit){
+ var value by remember(sentence){mutableStateOf(TextFieldValue(sentence))}
+ val selection=value.selection
+ val selectedTerm=if(!selection.collapsed && selection.start>=0 && selection.end<=sentence.length)
+  sentence.substring(selection.min,selection.max).trim() else ""
+ Column(modifier,verticalArrangement=Arrangement.spacedBy(3.dp)){
+  BasicTextField(
+   value=value,
+   onValueChange={updated->value=updated.copy(text=sentence)},
+   readOnly=true,
+   textStyle=androidx.compose.ui.text.TextStyle(color=Ink,fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp),
+   modifier=Modifier.fillMaxWidth()
+  )
+  if(selectedTerm.isNotBlank()){
+   Surface(onClick={onStudy(selectedTerm,sentence);value=TextFieldValue(sentence)},shape=RoundedCornerShape(12.dp),
+    color=Color(0xFFDFD2F2)){
+    Row(Modifier.padding(horizontal=12.dp,vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
+     Icon(Icons.Outlined.AddCircleOutline,null,modifier=Modifier.size(17.dp))
+     Spacer(Modifier.width(7.dp))
+     Text("Create prompt: $selectedTerm",fontSize=13.sp,maxLines=2)
+    }
    }
   }
  }
