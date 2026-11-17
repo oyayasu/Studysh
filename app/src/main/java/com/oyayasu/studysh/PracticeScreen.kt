@@ -103,7 +103,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
   if(!active){
    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
     item {
-     Text("Practice",fontSize=30.sp,fontWeight=FontWeight.Bold,color=Dark)
+     Text(ui("Practice"),fontSize=30.sp,fontWeight=FontWeight.Bold,color=Dark)
      Spacer(Modifier.height(5.dp))
      Text("Build confidence with the words you've studied.",color=Soft,fontSize=14.sp)
     }
@@ -226,9 +226,9 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
        }
       }
      }
-     Button(onClick={record(correct,q,chosenRating);cursor++;resetAnswer()},modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Continue",fontWeight=FontWeight.Bold)}
+     Button(onClick={record(correct,q,chosenRating);cursor++;resetAnswer()},modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text(ui("Continue"),fontWeight=FontWeight.Bold)}
     }else{
-     Button(onClick={suggestedRating=if(!correct)1 else if(System.currentTimeMillis()-exerciseStartedAt>45_000L)2 else 3;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Check",fontWeight=FontWeight.Bold)}
+     Button(onClick={suggestedRating=if(!correct)1 else if(System.currentTimeMillis()-exerciseStartedAt>45_000L)2 else 3;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text(ui("Check"),fontWeight=FontWeight.Bold)}
     }
     }
    }
