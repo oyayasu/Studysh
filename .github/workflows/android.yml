@@ -5,6 +5,7 @@ on:
   workflow_dispatch:
 permissions:
   contents: write
+  issues: write
 jobs:
   build:
     runs-on: ubuntu-24.04
@@ -24,9 +25,15 @@ jobs:
         with:
           gradle-version: '8.9'
       - name: Run unit tests
-        run: gradle :app:testDebugUnitTest --stacktrace --no-daemon --console=plain
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:testDebugUnitTest --stacktrace --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/studysh-tests.log"
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace --no-daemon --console=plain
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle :app:assembleDebug --stacktrace --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/studysh-build.log"
       - uses: actions/upload-artifact@v4
         with:
           name: Studysh-Android-debug
@@ -38,3 +45,30 @@ jobs:
         run: |
           gh release delete android-dev --yes --cleanup-tag || true
           gh release create android-dev app/build/outputs/apk/debug/*.apk --title "Studysh Android - Development" --notes "Debug-signed APK for direct installation and testing." --prerelease --target "${GITHUB_SHA}"
+      - name: Record failure for independent diagnostics
+        if: failure()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          {
+            echo "# Studysh Android CI diagnostics"
+            echo
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            for logfile in "$RUNNER_TEMP/studysh-tests.log" "$RUNNER_TEMP/studysh-build.log"; do
+              if [ -f "$logfile" ]; then
+                echo "## $(basename "$logfile")"
+                echo '~~~text'
+                tail -n 220 "$logfile"
+                echo '~~~'
+              fi
+            done
+          } > "$RUNNER_TEMP/studysh-ci-failure.md"
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"[CI] Android build failure" in:title' --json number --jq '.[0].number' || true)
+          if [ -n "$issue" ]; then
+            gh issue edit "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/studysh-ci-failure.md"
+          else
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "[CI] Android build failure" --body-file "$RUNNER_TEMP/studysh-ci-failure.md"
+          fi
