@@ -351,10 +351,11 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
       }
       item{
        OutlinedButton(onClick={fields=fields+StudyQuery()},enabled=fields.size<5,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Add,null);Text(" Add term")}
-       Spacer(Modifier.height(16.dp))
-       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()})));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
        Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" Capture from book")}
+       Spacer(Modifier.height(8.dp))
+       Spacer(Modifier.height(16.dp))
+       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()})));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
        Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
       }
