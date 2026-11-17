@@ -14,6 +14,9 @@ import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -80,10 +83,13 @@ fun BookCapture(maxStudies:Int=5,onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit
  var selected by remember{mutableStateOf<Set<Int>>(emptySet())}
  var strokes by remember{mutableStateOf<List<List<Offset>>>(emptyList())}
  var currentStroke by remember{mutableStateOf<List<Offset>>(emptyList())}
+ var zoom by remember{mutableFloatStateOf(1f)}
+ var pan by remember{mutableStateOf(Offset.Zero)}
+ var moveMode by remember{mutableStateOf(false)}
  val recognizer=remember{TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)}
  DisposableEffect(recognizer){onDispose{recognizer.close()}}
  fun recognize(uri:Uri){
-  error="";busy=true;selected=emptySet();strokes=emptyList();currentStroke=emptyList();phase=0
+  error="";busy=true;selected=emptySet();strokes=emptyList();currentStroke=emptyList();phase=0;zoom=1f;pan=Offset.Zero
   val loaded=runCatching{loadBookBitmap(context,uri)}.getOrNull()
   if(loaded==null){busy=false;error="Unable to open this image.";return}
   bitmap=loaded
@@ -126,64 +132,63 @@ fun BookCapture(maxStudies:Int=5,onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit
   }
   editText=""
  }
- Column(Modifier.fillMaxSize().background(Color(0xFFFCFBFE)).padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
+ Column(Modifier.fillMaxSize().background(Color(0xFFFCFBFE)).padding(horizontal=8.dp,vertical=5.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
   Row(verticalAlignment=Alignment.CenterVertically){
    IconButton(onClick=onClose){Icon(Icons.Outlined.Close,"Close capture")}
-   Text("Book Capture",fontSize=23.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
+   Text("Book Capture",fontSize=20.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
    Text("${captured.size} saved",fontSize=12.sp,color=Color.Gray)
-  }
-  Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
-   OutlinedButton(onClick={
-    runCatching{photoUri(context)}.onSuccess{pendingUri=it;camera.launch(it)}
-     .onFailure{error="Camera unavailable: ${it.localizedMessage}"}
-   }){Icon(Icons.Outlined.PhotoCamera,null);Text(" Camera")}
-   OutlinedButton(onClick={gallery.launch("image/*")}){Icon(Icons.Outlined.Image,null);Text(" Gallery")}
+   if(bitmap!=null)TextButton(onClick={bitmap=null;words=emptyList();selected=emptySet();strokes=emptyList();currentStroke=emptyList();zoom=1f;pan=Offset.Zero}){Text("New photo")}
   }
   if(busy)LinearProgressIndicator(Modifier.fillMaxWidth())
   if(error.isNotBlank())Text(error,color=MaterialTheme.colorScheme.error,fontSize=13.sp)
-  Text(if(phase==0)"1 · Paint the complete sentence" else "2 · Paint the word or expression",fontWeight=FontWeight.SemiBold)
-  Text("Paint across one or more lines, then confirm. Each pair creates one study request (up to $maxStudies).",fontSize=12.sp,color=Color.Gray)
   val b=bitmap
   if(b!=null){
-   BoxWithConstraints(Modifier.fillMaxWidth().weight(1f)){
-    val containerW=constraints.maxWidth.toFloat()
-    val containerH=constraints.maxHeight.toFloat()
-    val scale=min(containerW/b.width,containerH/b.height)
-    val imageW=b.width*scale
-    val imageH=b.height*scale
-    Box(Modifier.align(Alignment.Center).size(with(androidx.compose.ui.platform.LocalDensity.current){imageW.toDp()},with(androidx.compose.ui.platform.LocalDensity.current){imageH.toDp()})){
+   Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(5.dp)){
+    Text(if(phase==0)"1 · Sentence" else "2 · Term",fontWeight=FontWeight.SemiBold,modifier=Modifier.weight(1f))
+    TextButton(onClick={moveMode=!moveMode}){Icon(if(moveMode)Icons.Outlined.PanTool else Icons.Outlined.Edit,null);Text(if(moveMode)" Move" else " Paint")}
+    IconButton(onClick={zoom=(zoom/1.5f).coerceAtLeast(1f);if(zoom==1f)pan=Offset.Zero}){Icon(Icons.Outlined.Remove,"Zoom out")}
+    Text("${(zoom*100).toInt()}%",fontSize=12.sp)
+    IconButton(onClick={zoom=(zoom*1.5f).coerceAtMost(7f)}){Icon(Icons.Outlined.Add,"Zoom in")}
+   }
+   BoxWithConstraints(Modifier.fillMaxWidth().weight(1f).background(Color(0xFFE8E5E9))){
+    val baseScale=min(constraints.maxWidth.toFloat()/b.width,constraints.maxHeight.toFloat()/b.height)
+    val imageW=b.width*baseScale
+    val imageH=b.height*baseScale
+    val density=androidx.compose.ui.platform.LocalDensity.current
+    Box(Modifier.align(Alignment.Center).size(with(density){imageW.toDp()},with(density){imageH.toDp()})
+     .graphicsLayer{scaleX=zoom;scaleY=zoom;translationX=pan.x;translationY=pan.y;transformOrigin=TransformOrigin.Center}){
      Image(bitmap=b.asImageBitmap(),contentDescription="Book page",modifier=Modifier.fillMaxSize())
-     Canvas(Modifier.fillMaxSize().pointerInput(words,phase,scale){
-      detectDragGestures(onDragStart={point->currentStroke=listOf(point)},onDragEnd={
-       if(currentStroke.isNotEmpty()){
+     Canvas(Modifier.fillMaxSize().pointerInput(words,phase,baseScale,zoom,moveMode){
+      detectDragGestures(onDragStart={point->if(!moveMode)currentStroke=listOf(point)},onDragEnd={
+       if(!moveMode && currentStroke.isNotEmpty()){
         val stroke=currentStroke
         val newly=words.indices.filter{i->
          val box=words[i].box
          stroke.any{p->
-          val radius=14.dp.toPx()
-          p.x>=box.left*scale-radius && p.x<=box.right*scale+radius &&
-           p.y>=box.top*scale-radius && p.y<=box.bottom*scale+radius
+          val radius=8.dp.toPx()/zoom
+          p.x>=box.left*baseScale-radius && p.x<=box.right*baseScale+radius &&
+           p.y>=box.top*baseScale-radius && p.y<=box.bottom*baseScale+radius
          }
         }.toSet()
         selected=selected+newly
         strokes=strokes+listOf(stroke)
        }
        currentStroke=emptyList()
-      },onDragCancel={currentStroke=emptyList()},onDrag={change,_->
-       currentStroke=currentStroke+change.position
+      },onDragCancel={currentStroke=emptyList()},onDrag={change,dragAmount->
+       if(moveMode)pan=pan+dragAmount*zoom else currentStroke=currentStroke+change.position
        change.consume()
       })
      }){
       val ink=if(phase==0)Color(0xFFE3C354) else Color(0xFFB69BE9)
       selected.forEach{i->
        val r=words[i].box
-       drawRect(ink.copy(alpha=.38f),topLeft=Offset(r.left*scale,r.top*scale),
-        size=androidx.compose.ui.geometry.Size(r.width()*scale,r.height()*scale))
+       drawRect(ink.copy(alpha=.38f),topLeft=Offset(r.left*baseScale,r.top*baseScale),
+        size=androidx.compose.ui.geometry.Size(r.width()*baseScale,r.height()*baseScale))
       }
       (strokes+listOf(currentStroke)).forEach{points->
        if(points.isNotEmpty()){
         val path=Path().apply{moveTo(points.first().x,points.first().y);points.drop(1).forEach{lineTo(it.x,it.y)}}
-        drawPath(path,ink.copy(alpha=.43f),style=Stroke(width=24.dp.toPx(),cap=StrokeCap.Round))
+        drawPath(path,ink.copy(alpha=.43f),style=Stroke(width=20.dp.toPx()/zoom,cap=StrokeCap.Round))
        }
       }
      }
@@ -191,7 +196,16 @@ fun BookCapture(maxStudies:Int=5,onClose:()->Unit,onAdd:(List<StudyQuery>)->Unit
    }
   }else{
    Box(Modifier.fillMaxWidth().weight(1f).background(Color(0xFFF1EAFB)),contentAlignment=Alignment.Center){
-    Text("Take a photo of a printed book page to begin.",modifier=Modifier.padding(20.dp))
+    Column(horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(12.dp)){
+     Text("Photograph a printed book page to begin.")
+     Row(horizontalArrangement=Arrangement.spacedBy(8.dp)){
+        OutlinedButton(onClick={
+         runCatching{photoUri(context)}.onSuccess{pendingUri=it;camera.launch(it)}
+          .onFailure{error="Camera unavailable: ${it.localizedMessage}"}
+        }){Icon(Icons.Outlined.PhotoCamera,null);Text(" Camera")}
+        OutlinedButton(onClick={gallery.launch("image/*")}){Icon(Icons.Outlined.Image,null);Text(" Gallery")}
+       }
+    }
    }
   }
   if(words.isNotEmpty()){
