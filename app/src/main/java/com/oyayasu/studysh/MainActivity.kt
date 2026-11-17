@@ -195,6 +195,8 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  var advancedEdit by remember { mutableStateOf(false) }
  val clipboard=LocalClipboardManager.current
  val context=androidx.compose.ui.platform.LocalContext.current
+ val piper=remember(context){StudyshPiper(context)}
+ DisposableEffect(piper){onDispose{piper.close()}}
  val backupExporter=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
   uri?.let{
    runCatching{
@@ -268,7 +270,9 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     IconButton(onClick={backupExporter.launch("studysh-backup.json")}){Icon(Icons.Outlined.SaveAlt,"Export backup")}
     IconButton(onClick={picker.launch("*/*")}){Icon(Icons.Outlined.FileUpload,"Import JSON or backup")}
    }
-   if(page==4){
+   if(page==5){
+    PiperVoiceSettings(piper,onBack={page=3})
+   }else if(page==4){
     BookCapture(maxStudies=(5-fields.count{it.term.isNotBlank()}).coerceAtLeast(0),onClose={page=0},onAdd={captured->
      fields=fields.filter{it.term.isNotBlank()}+captured
      page=0
@@ -284,6 +288,8 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      item {
       Row(verticalAlignment=Alignment.CenterVertically){
        Column(Modifier.weight(1f)){Text(item.term,fontSize=30.sp,fontWeight=FontWeight.Bold);if(item.pronunciation.isNotBlank() || item.partOfSpeech.isNotBlank())Text(listOf(item.pronunciation,item.partOfSpeech).filter{it.isNotBlank()}.joinToString(" · "),color=Muted,fontSize=15.sp)}
+       IconButton(onClick={piper.speak(item.term)}){Icon(Icons.Outlined.VolumeUp,"Speak term")}
+       IconButton(onClick={page=5}){Icon(Icons.Outlined.RecordVoiceOver,"Voice settings")}
        IconButton(onClick={entryDraft=JSONObject(item.original).toString(2);editorError="";advancedEdit=false;editEntry=true}){Icon(Icons.Outlined.Edit,"Edit term")}
        IconButton(onClick={deleteEntry=true}){Icon(Icons.Outlined.DeleteOutline,"Delete term",tint=Color(0xFFAE5A68))}
       }
@@ -297,11 +303,11 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        }
       }
      }
-     items(item.notes.size){index->StudyNoteCard(item.notes[index],index)}
+     items(item.notes.size){index->StudyNoteCard(item.notes[index],index,onSpeak={piper.speak(it)})}
      val savedPersonal=runCatching{JSONObject(item.original).optJSONArray("personalNotes")}.getOrNull()
      if(savedPersonal!=null)items(savedPersonal.length()){index->
       val note=savedPersonal.optJSONObject(index)?.optString("text").orEmpty()
-      if(note.isNotBlank())StudyNoteCard(Note("My notes","plain",note),index)
+      if(note.isNotBlank())StudyNoteCard(Note("My notes","plain",note),index,onSpeak={piper.speak(it)})
      }
      item {
       Column(Modifier.fillMaxWidth().border(1.dp,Color(0xFFE5E1E9),RoundedCornerShape(20.dp)).background(Color.White,RoundedCornerShape(20.dp)).padding(16.dp)){
@@ -447,6 +453,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text("Create")})
      NavigationBarItem(selected=page==3,onClick={page=3},icon={Icon(Icons.Outlined.MenuBook,null)},label={Text("Lessons")})
      NavigationBarItem(selected=page==2,onClick={page=2},icon={Icon(Icons.Outlined.Extension,null)},label={Text("Practice")})
+     NavigationBarItem(selected=page==5,onClick={page=5},icon={Icon(Icons.Outlined.RecordVoiceOver,null)},label={Text("Voice")})
     }
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp,maxLines=4,overflow=TextOverflow.Ellipsis)
@@ -552,7 +559,7 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
  }
  append(text.substring(cursor))
 }
-@Composable private fun StudyNoteCard(note:Note,index:Int){
+@Composable private fun StudyNoteCard(note:Note,index:Int,onSpeak:(String)->Unit={}){
  val tone=when(note.type.lowercase()){
   "purple","concept","definition"->Color(0xFFF0EBF8)
   "blue","grammar","pattern","patterns"->Color(0xFFEAF2F9)
@@ -596,7 +603,10 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
   note.examples.forEachIndexed { i,example ->
    if(i>0)HorizontalDivider(color=Color(0x1C5D6064),thickness=1.dp)
    Column(verticalArrangement=Arrangement.spacedBy(5.dp)){
-    Text(readableText(example.first),fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp,color=Ink)
+    Row(verticalAlignment=Alignment.CenterVertically){
+     Text(readableText(example.first),modifier=Modifier.weight(1f),fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp,color=Ink)
+     IconButton(onClick={onSpeak(readableText(example.first))}){Icon(Icons.Outlined.VolumeUp,"Speak example")}
+    }
     if(example.second.isNotBlank())Text(readableText(example.second),fontSize=14.sp,lineHeight=21.sp,color=Muted)
    }
   }
