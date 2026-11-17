@@ -45,6 +45,16 @@ jobs:
         run: |
           gh release delete android-dev --yes --cleanup-tag || true
           gh release create android-dev app/build/outputs/apk/debug/*.apk --title "Studysh Android - Development" --notes "Debug-signed APK for direct installation and testing." --prerelease --target "${GITHUB_SHA}"
+      - name: Record successful release
+        if: success()
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"[CI] Android build failure" in:title' --json number --jq '.[0].number' || true)
+          if [ -n "$issue" ]; then
+            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --comment "Android APK successfully compiled and released for commit ${GITHUB_SHA}: https://github.com/${GITHUB_REPOSITORY}/releases/tag/android-dev"
+          fi
       - name: Record failure for independent diagnostics
         if: failure()
         shell: bash
