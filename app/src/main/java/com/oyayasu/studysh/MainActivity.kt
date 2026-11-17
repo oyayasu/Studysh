@@ -319,7 +319,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      }
      Text(ui("Lessons layout"),fontSize=19.sp,fontWeight=FontWeight.SemiBold)
      Row(verticalAlignment=Alignment.CenterVertically){Text(ui("Compact layout"),modifier=Modifier.weight(1f));Switch(checked=compact,onCheckedChange={compact=it})}
-     OutlinedButton(onClick={page=5},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.RecordVoiceOver,null);Text(" Voice settings")}
+     OutlinedButton(onClick={page=5},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.RecordVoiceOver,null);Text(" "+ui("Voice settings"))}
     }
    }else if(page==5){
     PiperVoiceSettings(piper,onBack={page=3})
@@ -407,14 +407,14 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        }
       }
       item{
-       OutlinedButton(onClick={fields=fields+StudyQuery()},enabled=fields.size<5,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Add,null);Text(" Add term")}
+       OutlinedButton(onClick={fields=fields+StudyQuery()},enabled=fields.size<5,modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.Add,null);Text(" "+ui("Add term"))}
        Spacer(Modifier.height(8.dp))
-       OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" Capture from book")}
+       OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" "+ui("Capture from book"))}
        Spacer(Modifier.height(8.dp))
        Spacer(Modifier.height(16.dp))
-       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()},studyLanguage)));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" Copy study prompt")}
+       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()},studyLanguage)));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" "+ui("Copy study prompt"))}
        Spacer(Modifier.height(8.dp))
-       OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" Import AI response")}
+       OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" "+ui("Import AI response"))}
       }
      }
      2->Box(Modifier.weight(1f)){StudyshPractice(library,readProgress,saveProgress)}
