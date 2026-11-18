@@ -2,11 +2,17 @@ package com.oyayasu.studysh.supertonic
 
 /** Sizes and SHA-256 verified against the actual pinned upstream files. */
 data class ModelAsset(val path: String, val bytes: Long, val sha256: String)
+data class SupertonicVoice(val id: String, val name: String)
 
 object SupertonicAssets {
     const val REVISION = "3cadd1ee6394adea1bd021217a0e650ede09a323"
     const val BASE_URL = "https://huggingface.co/Supertone/supertonic-3/resolve/$REVISION/"
-    val voices = listOf("F1", "F2")
+    val profiles = listOf(
+        SupertonicVoice("F1", "Sarah"),
+        SupertonicVoice("F2", "Lily"),
+    )
+    val voices = profiles.map { it.id }
+    fun voiceName(id: String) = profiles.single { it.id == id }.name
     val all = listOf(
         ModelAsset("onnx/duration_predictor.onnx", 3700147L, "c3eb91414d5ff8a7a239b7fe9e34e7e2bf8a8140d8375ffb14718b1c639325db"),
         ModelAsset("onnx/text_encoder.onnx", 36416150L, "c7befd5ea8c3119769e8a6c1486c4edc6a3bc8365c67621c881bbb774b9902ff"),

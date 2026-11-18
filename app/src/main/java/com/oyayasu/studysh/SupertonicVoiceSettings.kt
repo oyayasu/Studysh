@@ -24,10 +24,11 @@ fun SupertonicVoiceSettings(speech: SupertonicSpeech) {
     }
     models.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
     SupertonicAssets.voices.forEach { voice ->
+        val name = SupertonicAssets.voiceName(voice)
         val installed = models.installed(voice)
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("${if (voice == "F1") "Sarah" else "Lily"} · Female · Japanese", style = MaterialTheme.typography.titleMedium)
+                Text("$name · Female · Japanese", style = MaterialTheme.typography.titleMedium)
                 Text(if (installed) "Installed · Offline ready" else "Not installed", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (installed) {
@@ -37,7 +38,7 @@ fun SupertonicVoiceSettings(speech: SupertonicSpeech) {
                         OutlinedButton(onClick = { speech.preview(voice) }, enabled = !speech.busy) { Text("Test voice") }
                     } else {
                         Button(onClick = { models.install(voice) }, enabled = !models.busy) {
-                            Text(if (models.coreInstalled()) "Download $voice profile" else "Download $voice + models")
+                            Text(if (models.coreInstalled()) "Download $name profile" else "Download $name + models")
                         }
                     }
                 }

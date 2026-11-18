@@ -16,12 +16,12 @@ An offline-first vocabulary learning workspace for Android, with a future Window
 3. Copy the resulting JSON into **Import AI response**, or save it as a .json file and use the import icon.
 4. Browse imported terms in Library.
 
-## Offline Japanese audio (0.10.0)
+## Offline Japanese audio (0.10.1)
 
-Open **Settings → Voice settings → 日本語 · Supertonic 3**, download **F1 + models**,
+Open **Settings → Voice settings → 日本語 · Supertonic 3**, download **Sarah + models**,
 then tap **Test voice**. After installation, lesson term and example audio buttons
 use the selected Supertonic profile entirely on device, including in airplane mode.
-F1–F5 are female profiles; shared ONNX models download once (~399 MB), with each
+Only **Sarah (F1)** and **Lily (F2)** are offered for Japanese; shared ONNX models download once (~399 MB), with each
 additional profile requiring ~0.3 MB. No server address or Android speech engine is
 needed. Internet is used only for model downloads; other languages continue to use
 Piper. The production models are pinned and checked by size and SHA-256, and partial
@@ -54,13 +54,13 @@ SUPERTONIC_MODEL_DIR=/tmp/studysh-supertonic gradle :speech-smoke:test
 ```
 
 This checks all pinned assets and synthesizes Japanese words, expressions and
-sentences with F1–F5, asserting finite non-silent PCM. It exports WAV samples and
+sentences with Sarah and Lily, asserting finite non-silent PCM. It exports WAV samples and
 metrics to `speech-smoke/build/voice-samples/`. Without the model directory this
 heavy test is explicitly skipped. CI always downloads models and runs it, plus the
 Android unit tests, before publishing the debug-signed APK, test reports and samples
 as Actions artifacts. The development release is updated when publishing is available.
 
-Physical-device acceptance remains separate: install/upgrade the APK, download F1
+Physical-device acceptance remains separate: install/upgrade the APK, download Sarah
 with interruption/retry, test voice selection persistence after restarting, play
 lesson terms and examples in airplane mode, test stop/repeated taps and audio routing,
 and play a downloaded English/Portuguese/Spanish Piper voice. Check latency, memory

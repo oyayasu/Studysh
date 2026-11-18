@@ -36,11 +36,12 @@ class SupertonicSpeech(context: Context) {
     var error by mutableStateOf<String?>(null); private set
 
     fun select(voice: String) {
-        if (!models.installed(voice)) { error = "Download $voice in Voice settings first."; return }
+        val name = SupertonicAssets.voiceName(voice)
+        if (!models.installed(voice)) { error = "Download $name in Voice settings first."; return }
         stop()
         activeVoice = voice
         prefs.edit().putString("voice", voice).apply()
-        message = "$voice selected for Japanese lessons"; error = null
+        message = "$name selected for Japanese lessons"; error = null
     }
 
     fun preview(voice: String = activeVoice) {
@@ -55,11 +56,12 @@ class SupertonicSpeech(context: Context) {
             error = "Japanese voice files are being checked or downloaded. Please wait."; return
         }
         if (!models.installed(activeVoice)) {
-            error = "Download Supertonic 3 $activeVoice in Voice settings to enable offline Japanese audio."; return
+            error = "Download ${SupertonicAssets.voiceName(activeVoice)} in Voice settings to enable offline Japanese audio."; return
         }
         val voice = activeVoice
+        val name = SupertonicAssets.voiceName(voice)
         val id = request.get()
-        busy = true; error = null; message = "Preparing $voice · Supertonic 3…"
+        busy = true; error = null; message = "Preparing $name · Supertonic 3…"
         worker.execute {
             fun cancelled() = closed || request.get() != id
             fun update(action: () -> Unit) { main.post { if (!cancelled()) action() } }
@@ -73,12 +75,12 @@ class SupertonicSpeech(context: Context) {
                 val chunks = JapaneseTextChunker.chunk(text)
                 for ((index, chunk) in chunks.withIndex()) {
                     if (cancelled()) throw CancellationException()
-                    update { message = "Generating $voice · ${index + 1}/${chunks.size}…" }
+                    update { message = "Generating $name · ${index + 1}/${chunks.size}…" }
                     val pcm = engine!!.synthesizeChunk(chunk, style!!, cancelled = ::cancelled)
-                    update { message = "Playing $voice · Offline · ${index + 1}/${chunks.size}" }
+                    update { message = "Playing $name · Offline · ${index + 1}/${chunks.size}" }
                     play(pcm, engine!!.sampleRate, ::cancelled)
                 }
-                update { message = "$voice · Offline playback finished" }
+                update { message = "$name · Offline playback finished" }
             } catch (_: CancellationException) {
                 // A newer tap, stop, or close owns the visible state.
             } catch (e: Exception) {

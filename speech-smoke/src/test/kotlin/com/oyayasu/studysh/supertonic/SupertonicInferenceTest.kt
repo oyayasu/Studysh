@@ -10,20 +10,20 @@ import kotlin.math.sqrt
 
 /** Real ONNX execution with official weights; no synthesis mocks. */
 class SupertonicInferenceTest {
-    @Test fun synthesizeJapaneseWordExpressionAndSentencesWithFemaleProfiles() {
+    @Test fun synthesizeJapaneseWordExpressionAndSentencesWithSarahAndLily() {
         val path = System.getenv("SUPERTONIC_MODEL_DIR")
         assumeTrue("Set SUPERTONIC_MODEL_DIR to run real inference", !path.isNullOrBlank())
         val root = File(path!!)
         val verified = ModelStore(root).verifiedPaths(SupertonicAssets.all)
         assertEquals(SupertonicAssets.all.map { it.path }.toSet(), verified)
-        val output = File("build/voice-samples").apply { mkdirs() }
+        val output = File("build/voice-samples").apply { deleteRecursively(); mkdirs() }
         val report = StringBuilder("voice\ttext\tsamples\tduration_seconds\trms\tinference_ms\n")
         SupertonicEngine.load(File(root, "onnx")).use { engine ->
             assertEquals(44100, engine.sampleRate)
-            for (voice in SupertonicAssets.voices) {
+            for (profile in SupertonicAssets.profiles) {
+                val voice = profile.id
                 val style = VoiceStyle.load(File(root, "voice_styles/$voice.json"))
-                val texts = if (voice == "F1") listOf("猫", "お疲れさまです", "こんにちは。日本語を一緒に勉強しましょう。")
-                    else listOf("こんにちは。日本語を勉強しています。")
+                val texts = listOf("猫", "お疲れさまです", "こんにちは。日本語を一緒に勉強しましょう。")
                 for ((index, text) in texts.withIndex()) {
                     val start = System.nanoTime()
                     val pcm = engine.synthesizeChunk(text, style)
@@ -32,8 +32,8 @@ class SupertonicInferenceTest {
                     val rms = sqrt(pcm.sumOf { it.toDouble() * it } / pcm.size)
                     assertTrue("$voice/$text has audible finite PCM", pcm.all { it.isFinite() } && rms > 0.00001)
                     assertTrue("$voice/$text duration $seconds", seconds in 0.05..60.0)
-                    writeWav(File(output, "$voice-$index.wav"), pcm, engine.sampleRate)
-                    report.append("$voice\t$text\t${pcm.size}\t$seconds\t$rms\t$millis\n")
+                    writeWav(File(output, "${profile.name}-$index.wav"), pcm, engine.sampleRate)
+                    report.append("${profile.name}\t$text\t${pcm.size}\t$seconds\t$rms\t$millis\n")
                 }
             }
             assertThrows(java.util.concurrent.CancellationException::class.java) {

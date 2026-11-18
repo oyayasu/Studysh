@@ -13,7 +13,18 @@ source = (Path(__file__).resolve().parents[1] /
           "app/src/main/java/com/oyayasu/studysh/supertonic/SupertonicAssets.kt").read_text()
 revision = re.search(r'REVISION = "([a-f0-9]+)"', source).group(1)
 assets = re.findall(r'ModelAsset\("([^"]+)", (\d+)L, "([a-f0-9]+)"\)', source)
-assert len(assets) == 11, "Incomplete production manifest"
+profiles = re.findall(r'SupertonicVoice\("([^"]+)", "[^"]+"\)', source)
+core_paths = {
+    "onnx/duration_predictor.onnx", "onnx/text_encoder.onnx",
+    "onnx/vector_estimator.onnx", "onnx/vocoder.onnx",
+    "onnx/tts.json", "onnx/unicode_indexer.json",
+}
+expected_paths = core_paths | {f"voice_styles/{voice}.json" for voice in profiles}
+paths = [name for name, _, _ in assets]
+if (not profiles or len(set(profiles)) != len(profiles)
+        or len(set(paths)) != len(paths) or set(paths) != expected_paths
+        or any(int(size) <= 0 or len(checksum) != 64 for _, size, checksum in assets)):
+    raise ValueError("Incomplete or invalid production manifest for the configured voices")
 for name, size, checksum in assets:
     target = args.directory / name
     target.parent.mkdir(parents=True, exist_ok=True)
@@ -37,4 +48,4 @@ for name, size, checksum in assets:
         except Exception:
             if attempt == 2:
                 raise
-print("All 11 Supertonic assets verified.")
+print(f"All {len(assets)} Supertonic assets verified for {', '.join(profiles)}.")

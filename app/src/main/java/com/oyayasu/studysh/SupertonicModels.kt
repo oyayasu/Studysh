@@ -26,7 +26,7 @@ class SupertonicModels(context: Context) {
             val operation = currentCoroutineContext()
             try {
                 verified = withContext(Dispatchers.IO) { store.verifiedPaths(SupertonicAssets.all) { !operation.isActive } }
-                status = if (SupertonicAssets.voices.any { installed(it) }) "Supertonic 3 · Offline ready" else "Download F1 to enable Japanese audio."
+                status = if (SupertonicAssets.voices.any { installed(it) }) "Supertonic 3 · Offline ready" else "Download Sarah to enable Japanese audio."
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 error = "Could not check voice files: ${e.localizedMessage}"
@@ -42,7 +42,7 @@ class SupertonicModels(context: Context) {
         busy = true; progress = 0f; downloadedBytes = 0L
         totalBytes = SupertonicAssets.forVoice(voice).sumOf { it.bytes }
         error = null
-        status = "Downloading Supertonic 3 · $voice…"
+        status = "Downloading Supertonic 3 · ${SupertonicAssets.voiceName(voice)}…"
         job = scope.launch {
             val operation = currentCoroutineContext()
             try {
@@ -62,7 +62,7 @@ class SupertonicModels(context: Context) {
                     }
                 }
                 verified = verified + SupertonicAssets.forVoice(voice).map { it.path }
-                status = "$voice installed · Ready for offline Japanese playback"
+                status = "${SupertonicAssets.voiceName(voice)} installed · Ready for offline Japanese playback"
                 progress = 1f
             } catch (e: CancellationException) {
                 status = "Download paused. Tap Download to resume."

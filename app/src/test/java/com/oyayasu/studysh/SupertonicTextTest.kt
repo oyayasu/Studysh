@@ -5,6 +5,13 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class SupertonicTextTest {
+    @Test fun japaneseCatalogOffersOnlySarahAndLily() {
+        assertEquals(mapOf("F1" to "Sarah", "F2" to "Lily"), SupertonicAssets.profiles.associate { it.id to it.name })
+        assertEquals(setOf("voice_styles/F1.json", "voice_styles/F2.json"),
+            SupertonicAssets.all.filter { it.path.startsWith("voice_styles/") }.map { it.path }.toSet())
+        assertEquals(8, SupertonicAssets.all.size)
+        assertThrows(IllegalArgumentException::class.java) { SupertonicAssets.forVoice("F3") }
+    }
     @Test fun longJapaneseWithoutSpacesIsBoundedAndLossless() {
         val input = "今日は日本語を勉強します。".repeat(60)
         val chunks = JapaneseTextChunker.chunk(input)

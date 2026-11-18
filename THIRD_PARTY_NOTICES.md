@@ -11,7 +11,7 @@ Model weights and voice profiles are downloaded directly from
 [Supertone/supertonic-3](https://huggingface.co/Supertone/supertonic-3), revision
 `3cadd1ee6394adea1bd021217a0e650ede09a323`. They are distributed by Supertone Inc.
 under the [model's OpenRAIL-M license](https://huggingface.co/Supertone/supertonic-3/blob/main/LICENSE).
-Weights are not bundled in the APK. F1–F5 are upstream profile identifiers.
+Weights are not bundled in the APK. Studysh exposes Sarah (upstream F1) and Lily (upstream F2) for Japanese.
 
 ONNX Runtime is provided by Microsoft under the MIT license. Piper uses the
 [piper-tts-apps/piper-kotlin](https://github.com/piper-tts-apps/piper-kotlin)

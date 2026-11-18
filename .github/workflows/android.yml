@@ -46,7 +46,7 @@ jobs:
           gradle :app:testDebugUnitTest --stacktrace --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/studysh-tests.log"
       - name: Download and verify Supertonic models for real inference tests
         run: python3 scripts/download-supertonic-models.py "$RUNNER_TEMP/supertonic-models"
-      - name: Test real Japanese inference with F1-F5
+      - name: Test real Japanese inference with Sarah and Lily
         env:
           SUPERTONIC_MODEL_DIR: ${{ runner.temp }}/supertonic-models
         run: gradle :speech-smoke:test --stacktrace --no-daemon --console=plain
