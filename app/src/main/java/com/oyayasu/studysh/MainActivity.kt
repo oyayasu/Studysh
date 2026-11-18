@@ -339,7 +339,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      item {
       Row(verticalAlignment=Alignment.CenterVertically){
        Column(Modifier.weight(1f)){Text(item.term,fontSize=30.sp,fontWeight=FontWeight.Bold);if(item.pronunciation.isNotBlank() || item.partOfSpeech.isNotBlank())Text(listOf(item.pronunciation,item.partOfSpeech).filter{it.isNotBlank()}.joinToString(" · "),color=Muted,fontSize=15.sp)}
-       IconButton(onClick={piper.speak(item.term)}){Icon(Icons.Outlined.VolumeUp,"Speak term")}
+       IconButton(onClick={piper.speak(item.term,item.language)}){Icon(Icons.Outlined.VolumeUp,"Speak term")}
        IconButton(onClick={page=5}){Icon(Icons.Outlined.RecordVoiceOver,"Voice settings")}
        IconButton(onClick={entryDraft=JSONObject(item.original).toString(2);editorError="";advancedEdit=false;editEntry=true}){Icon(Icons.Outlined.Edit,"Edit term")}
        IconButton(onClick={deleteEntry=true}){Icon(Icons.Outlined.DeleteOutline,"Delete term",tint=Color(0xFFAE5A68))}
@@ -354,7 +354,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        }
       }
      }
-     items(item.notes.size){index->StudyNoteCard(item.notes[index],index,onSpeak={piper.speak(it)},onStudy={term,sentence->pendingExample=term to sentence})}
+     items(item.notes.size){index->StudyNoteCard(item.notes[index],index,onSpeak={piper.speak(it,item.language)},onStudy={term,sentence->pendingExample=term to sentence})}
      val savedPersonal=runCatching{JSONObject(item.original).optJSONArray("personalNotes")}.getOrNull()
      if(savedPersonal!=null)items(savedPersonal.length()){index->
       val note=savedPersonal.optJSONObject(index)?.optString("text").orEmpty()
@@ -365,7 +365,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
          IconButton(onClick={editingPersonalNote=index;personalNoteDraft=note}){Icon(Icons.Outlined.Edit,"Edit note")}
          IconButton(onClick={deletePersonalNote=index}){Icon(Icons.Outlined.DeleteOutline,"Delete note")}
         }
-        StudyNoteCard(Note("My notes","plain",note),index,onSpeak={piper.speak(it)},onStudy={term,sentence->pendingExample=term to sentence})
+        StudyNoteCard(Note("My notes","plain",note),index,onSpeak={piper.speak(it,item.language)},onStudy={term,sentence->pendingExample=term to sentence})
        }
       }
      }
