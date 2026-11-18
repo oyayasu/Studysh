@@ -15,7 +15,7 @@ const state={
   progress:readJson("progress",{}),language:canonical(readSetting("language","English")),
   practiceLanguage:canonical(readSetting("practiceLanguage","English")),
   furigana:readSetting("furigana","false")==="true",
-  voice:readSetting("voice",""),muted:readSetting("muted","false")==="true",
+  voice:readSetting("voice",""),voiceEngine:readSetting("voiceEngine","windows"),qwenSpeaker:readSetting("qwenSpeaker","auto"),muted:readSetting("muted","false")==="true",
   selected:null,filter:"All",search:"",terms:[blank()],session:null
 };
 const renderRoot=$("content"),modal=$("modal"),backdrop=$("modal-backdrop");
@@ -227,31 +227,116 @@ async function exportData(){
   showToast("Backup exported.");
  }catch(e){showToast("Export failed: "+e.message);}
 }
-function voiceList(){
- if(!("speechSynthesis" in window))return [];
- return speechSynthesis.getVoices();
+function voiceList(){return "speechSynthesis" in window?speechSynthesis.getVoices():[];}
+const QWEN_SPEAKERS=[
+ ["auto","Automatic (native accent)"],["Aiden","Aiden · American English"],["Ryan","Ryan · English"],
+ ["Ono_Anna","Ono Anna · Japanese"],["Vivian","Vivian · Chinese"],["Serena","Serena · Chinese"],
+ ["Uncle_Fu","Uncle Fu · Chinese"],["Dylan","Dylan · Chinese"],["Eric","Eric · Chinese"],["Sohee","Sohee · Korean"]
+];
+const speakerIds=new Set(QWEN_SPEAKERS.map(v=>v[0]));
+let voiceDraft=null,qwenInfo=null,qwenError="",qwenBusy=false,qwenStage="",activeAudio=null,speechRequest=0;
+const speechCache=new Map();
+const previewSpeech={English:"Hello! Let's practice English together.",Japanese:"こんにちは。今日は日本語を練習しましょう。",
+ Spanish:"Hola. Vamos a practicar español.",Portuguese:"Olá! Vamos praticar português."};
+function qwenSpeakerFor(language,preferred){
+ if(preferred!=="auto"&&speakerIds.has(preferred))return preferred;
+ return canonical(language)==="Japanese"?"Ono_Anna":"Aiden";
 }
 function showSettings(){
- const voices=voiceList();
- const voiceOptions='<option value="">Automatic system voice</option>'+
- voices.map(v=>'<option value="'+esc(v.voiceURI)+'" '+(state.voice===v.voiceURI?"selected":"")+'>'+esc(v.name+" · "+v.lang)+'</option>').join("");
- modalShow("Settings",'<div class="form-grid"><div><label class="field">Study language</label>'+
- '<select id="settings-language" class="field-select">'+LANGUAGES.map(l=>'<option '+(state.language===l?"selected":"")+'>'+l+'</option>').join("")+'</select></div>'+
- '<div><label class="field">Speech (Windows voices)</label><select id="settings-voice" class="field-select">'+voiceOptions+'</select></div></div>'+
- '<div class="row spread" style="margin:20px 0 12px"><div><strong>Furigana</strong><p class="muted small">Show imported reading annotations over Japanese kanji.</p></div>'+
- '<input type="checkbox" id="settings-furigana" '+(state.furigana?"checked":"")+'></div>'+
- '<div class="row spread"><div><strong>Mute speech</strong><p class="muted small">Voices depend on those installed in Windows; Supertonic and Piper are not included yet.</p></div>'+
- '<input type="checkbox" id="settings-muted" '+(state.muted?"checked":"")+'></div>',
- '<button class="secondary" data-action="test-voice">Test voice</button><button class="primary" data-action="save-settings">Save settings</button>');
+ modalShow("Settings",'<div class="voice-panel"><div><label class="field" for="settings-language">Study language</label>'+
+  '<select id="settings-language" class="field-select">'+LANGUAGES.map(l=>'<option '+(state.language===l?"selected":"")+'>'+l+'</option>').join("")+'</select></div>'+
+  '<div class="voice-summary"><div class="row spread"><div><strong>'+icon("headphones",18)+' Voice</strong>'+
+  '<p class="muted small">Configure Windows or Qwen3-TTS voices.</p></div>'+
+  '<button class="secondary" data-action="open-voice-settings">Voice options</button></div></div>'+
+  '<div class="row spread"><div><strong>Furigana</strong><p class="muted small">Show imported reading annotations over Japanese kanji.</p></div>'+
+  '<input type="checkbox" id="settings-furigana" '+(state.furigana?"checked":"")+'></div>'+
+  '<div class="row spread"><div><strong>Mute speech</strong><p class="muted small">Disable pronunciation playback.</p></div>'+
+  '<input type="checkbox" id="settings-muted" '+(state.muted?"checked":"")+'></div></div>',
+  '<button class="primary" data-action="save-settings">Save settings</button>');
 }
-function speak(text,language){
+async function refreshQwen(){
+ const invoke=window.__TAURI__?.core?.invoke;
+ if(!invoke){qwenInfo=null;return;}
+ try{qwenInfo=await invoke("qwen_status");}catch(e){qwenInfo=null;qwenError=String(e);}
+}
+function renderVoiceSettings(){
+ if(!voiceDraft)return;
+ const engine=voiceDraft.engine,ready=!!qwenInfo?.model_downloaded;
+ const voiceOptions='<option value="">Automatic system voice</option>'+voiceList().map(v=>
+  '<option value="'+esc(v.voiceURI)+'" '+(v.voiceURI===voiceDraft.voice?"selected":"")+'>'+esc(v.name+" · "+v.lang)+'</option>').join("");
+ const speakers=QWEN_SPEAKERS.map(([id,label])=>'<option value="'+esc(id)+'" '+(voiceDraft.speaker===id?"selected":"")+'>'+esc(label)+'</option>').join("");
+ const status=qwenBusy?qwenStage:ready?"Installed — offline speech on CPU.":
+  qwenInfo?.dependencies_installed?"Dependencies installed; download the voice model.":
+  window.__TAURI__?.core?.invoke?"Not installed. A one-time download is required.":"Available in the installed Windows app.";
+ const qwenHtml='<div class="voice-panel"><div><label class="field" for="voice-speaker">Qwen3 speaker</label>'+
+  '<select id="voice-speaker" class="field-select" '+(qwenBusy?"disabled":"")+'>'+speakers+'</select></div>'+
+  '<p class="voice-hint">Qwen3-TTS 0.6B CustomVoice · nine voices · English, Japanese, Spanish and Portuguese. Native-accent voices are recommended for language practice.</p>'+
+  '<div class="voice-status '+(qwenError?"error":ready?"ready":"")+'" role="status">'+esc(qwenError||status)+'</div>'+
+  (!ready?'<button class="secondary" data-action="install-qwen" '+(qwenBusy||!window.__TAURI__?.core?.invoke?"disabled":"")+'>'+
+    icon("cloud-download",17)+' '+(qwenBusy?"Working…":qwenInfo?.dependencies_installed?"Download model":"Install & download")+'</button>':
+    '<div class="pill green">'+icon("check",15)+' Ready offline</div>')+
+  '<p class="voice-hint">Setup needs internet, Python 3.11/3.12 and several GB of disk space. Generation then works offline. CPU synthesis may be slow.</p></div>';
+ modalShow("Voice options",'<div class="voice-panel"><div><label class="field" for="voice-engine">Speech engine</label>'+
+  '<select id="voice-engine" class="field-select" '+(qwenBusy?"disabled":"")+'>'+
+  '<option value="windows" '+(engine==="windows"?"selected":"")+'>Windows voices</option>'+
+  '<option value="qwen" '+(engine==="qwen"?"selected":"")+'>Qwen3-TTS · Neural offline</option></select></div>'+
+  (engine==="qwen"?qwenHtml:'<div><label class="field" for="voice-system">Windows voice</label>'+
+  '<select id="voice-system" class="field-select">'+voiceOptions+'</select></div>')+'</div>',
+  '<button class="quiet" data-action="test-selected-voice" '+(qwenBusy||engine==="qwen"&&!ready?"disabled":"")+'>'+
+  icon("volume-2",16)+' Test voice</button>'+
+  '<button class="primary" data-action="save-voice-settings" '+(qwenBusy?"disabled":"")+'>Save voice</button>');
+}
+async function showVoiceSettings(){
+ voiceDraft={engine:state.voiceEngine,voice:state.voice,speaker:state.qwenSpeaker};
+ qwenError="";await refreshQwen();renderVoiceSettings();
+}
+async function installQwen(){
+ const invoke=window.__TAURI__?.core?.invoke;
+ if(qwenBusy||!invoke)return;
+ qwenBusy=true;qwenError="";
+ try{
+  if(!qwenInfo?.dependencies_installed){
+   qwenStage="Installing the local engine (large download)…";renderVoiceSettings();
+   await invoke("qwen_install");
+  }
+  qwenStage="Downloading Qwen3-TTS 0.6B model and tokenizer…";renderVoiceSettings();
+  await invoke("qwen_prepare");await refreshQwen();
+  showToast("Qwen3-TTS is ready for offline speech.");
+ }catch(e){qwenError="Setup failed: "+String(e);await refreshQwen();}
+ finally{qwenBusy=false;qwenStage="";renderVoiceSettings();}
+}
+async function speak(text,language,selection=null){
  if(state.muted)return;
- if(!("speechSynthesis" in window)){showToast("Speech synthesis is not available on this device.");return;}
+ const request=++speechRequest;
+ const current=selection||{engine:state.voiceEngine,voice:state.voice,speaker:state.qwenSpeaker};
+ if(activeAudio){activeAudio.pause();activeAudio=null;}
+ if("speechSynthesis" in window)speechSynthesis.cancel();
+ if(current.engine==="qwen"){
+  const invoke=window.__TAURI__?.core?.invoke;
+  if(!invoke){showToast("Qwen3 needs the Windows desktop application.");return;}
+  const lang=canonical(language),speaker=qwenSpeakerFor(lang,current.speaker);
+  const cacheKey=JSON.stringify([text,lang,speaker]);
+  try{
+   let wav=speechCache.get(cacheKey);
+   if(!wav){
+    showToast("Generating speech locally…");
+    wav=await invoke("qwen_synthesize",{text:String(text),language:lang,speaker});
+    speechCache.set(cacheKey,wav);
+    if(speechCache.size>12)speechCache.delete(speechCache.keys().next().value);
+   }
+   if(request!==speechRequest)return;
+   activeAudio=new Audio("data:audio/wav;base64,"+wav);
+   await activeAudio.play();
+  }catch(e){if(request===speechRequest)showToast("Qwen3 voice error: "+String(e));}
+  return;
+ }
+ if(!("speechSynthesis" in window)){showToast("Speech synthesis is not available.");return;}
  const u=new SpeechSynthesisUtterance(String(text));
  const code={English:"en-US",Japanese:"ja-JP",Spanish:"es-ES",Portuguese:"pt-BR"}[canonical(language)]||"en-US";
- const voices=voiceList(),v=voices.find(x=>x.voiceURI===state.voice)||voices.find(x=>x.lang.toLowerCase().startsWith(code.slice(0,2).toLowerCase()));
+ const v=voiceList().find(x=>x.voiceURI===current.voice)||
+  voiceList().find(x=>x.lang.toLowerCase().startsWith(code.slice(0,2)));
  if(v)u.voice=v;
- u.lang=code;u.rate=.9;speechSynthesis.cancel();speechSynthesis.speak(u);
+ u.lang=code;u.rate=.9;speechSynthesis.speak(u);
 }
 async function copyText(text){
  try{await navigator.clipboard.writeText(text);showToast("Copied to clipboard.");}
