@@ -38,6 +38,7 @@ val PIPER_VOICES=listOf(
  PiperVoice("es_ES-davefx-medium","DaveFX · Medium (España)","es_ES",63_221_984L)
 )
 class StudyshPiper(private val context:Context){
+ val japanese=JapaneseDeviceSpeech(context)
  private val preferences=context.getSharedPreferences("piper",Context.MODE_PRIVATE)
  private val worker=Executors.newSingleThreadExecutor()
  private val player=PiperPlayer()
@@ -140,7 +141,8 @@ class StudyshPiper(private val context:Context){
   }
   speak(sample)
  }
- fun speak(text:String){
+ fun speak(text:String,language:String="English"){
+  if(language=="Japanese"){japanese.speak(text);return}
   if(text.isBlank())return
   val voice=PIPER_VOICES.firstOrNull{it.id==activeVoice}?:PIPER_VOICES[0]
   if(!installed(voice)){message="Download ${voice.label} in Voice settings first.";return}
@@ -159,8 +161,8 @@ class StudyshPiper(private val context:Context){
    }catch(e:Exception){message="Piper playback failed: ${e.localizedMessage}"}
   }
  }
- fun stop(){player.stop()}
- fun close(){player.stop();worker.execute{engine?.close();engine=null};worker.shutdown()}
+ fun stop(){player.stop();japanese.stop()}
+ fun close(){player.stop();japanese.close();worker.execute{engine?.close();engine=null};worker.shutdown()}
 }
 @Composable
 fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
@@ -195,7 +197,17 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
    }
   }
   }
-  Text("日本語 · Supertonic 3",style=MaterialTheme.typography.titleLarge)
+  Text("日本語 · Android speech (available now)",style=MaterialTheme.typography.titleLarge)
+  Text(piper.japanese.status,style=MaterialTheme.typography.bodySmall)
+  if(piper.japanese.voices.isEmpty())Text("Install Japanese voice data through your Android text-to-speech settings.",style=MaterialTheme.typography.bodySmall)
+  piper.japanese.voices.forEach { voice ->
+   Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+    RadioButton(selected=piper.japanese.selected==voice.name,onClick={piper.japanese.choose(voice.name)})
+    Text(voice.name+(if(voice.isNetworkConnectionRequired)" · Internet required" else " · Offline"),Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
+    OutlinedButton(onClick={piper.japanese.speak("こんにちは。日本語の発音を練習しましょう。")}){Text("Listen")}
+   }
+  }
+  Text("日本語 · Supertonic 3 (experimental)",style=MaterialTheme.typography.titleLarge)
   Text(if(supertonic.installed())"Supertonic model files installed" else "Supertonic 3 model download · approximately 400 MB",style=MaterialTheme.typography.bodySmall)
   if(supertonic.busy)LinearProgressIndicator(progress={supertonic.progress},modifier=Modifier.fillMaxWidth())
   if(!supertonic.installed())Button(onClick={supertonic.install()},enabled=!supertonic.busy){Text("Download Supertonic 3")}
