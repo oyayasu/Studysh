@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#d8c3f5"/>
+      <stop offset="1" stop-color="#a78bdc"/>
+    </linearGradient>
+    <linearGradient id="paper" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#f4ebff"/>
+    </linearGradient>
+  </defs>
+  <rect x="28" y="28" width="456" height="456" rx="116" fill="url(#bg)"/>
+  <path d="M99 333c49-19 101-13 154 15 54-28 108-34 160-15v-173c-52-18-106-12-160 16-53-28-105-34-154-16z" fill="#7758aa" opacity=".2"/>
+  <path d="M101 170c51-20 106-14 153 16v177c-49-31-103-36-153-16z" fill="url(#paper)"/>
+  <path d="M254 186c48-30 104-36 157-16v177c-53-20-108-15-157 16z" fill="#f8f0ff"/>
+  <path d="M254 187v176" stroke="#c8acdf" stroke-width="10" stroke-linecap="round"/>
+  <path d="M127 217c35-9 69-4 98 10M127 254c34-7 68-2 98 12M127 291c34-6 69-1 98 13M283 229c29-15 64-20 101-14M283 267c30-14 63-19 101-14M283 303c30-13 65-18 101-13" stroke="#d8c8eb" stroke-width="11" stroke-linecap="round"/>
+  <path d="M351 94l10 34 34 10-34 10-10 34-10-34-34-10 34-10z" fill="#fff9df"/>
+  <circle cx="407" cy="193" r="9" fill="#fff4ce"/>
+</svg>
