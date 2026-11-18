@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "tauri": "tauri",
+    "build": "tauri icon app-icon.svg && tauri build --bundles nsis",
     "test": "node --test tests/*.test.mjs"
   },
   "devDependencies": {
