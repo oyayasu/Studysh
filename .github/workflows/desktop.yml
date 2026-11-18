@@ -37,8 +37,10 @@ jobs:
           node --check web/core.js
           node --check web/fsrs.js
           npm test
-      - name: Verify Qwen3 Python worker syntax
-        run: python -m py_compile src-tauri/python/qwen_tts_bridge.py
+      - name: Verify Qwen3 Python worker and resumable downloads
+        run: |
+          python -m py_compile src-tauri/python/qwen_tts_bridge.py
+          python tests/test_qwen_download.py
       - name: Build Windows NSIS installer
         run: npm run build
       - name: Exercise the installed app, cancellation, resume and EN / JA playback

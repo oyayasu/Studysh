@@ -137,17 +137,20 @@ fn install(app: &tauri::AppHandle, root: &Path, report: &Reporter) -> Result<(),
     let python = venv_python(root);
     let venv = root.join("venv");
     let cfg = fs::read_to_string(venv.join("pyvenv.cfg")).unwrap_or_default();
+    let managed_dir = root.join("python").canonicalize().ok();
     let managed = cfg.lines().filter_map(|line| line.split_once(" = "))
-        .any(|(key, path)| key == "home" && Path::new(path).starts_with(root.join("python")));
-    let compatible = cfg.lines().any(|line| line.starts_with("version_info = 3.12.")
-        || line.starts_with("version = 3.12."));
+        .any(|(key, path)| key == "home" && managed_dir.as_ref().is_some_and(|base|
+            Path::new(path).canonicalize().is_ok_and(|home| home.starts_with(base))));
+    let compatible = cfg.lines().filter_map(|line| line.split_once(" = "))
+        .any(|(key, version)| matches!(key, "version_info" | "version")
+            && (version == "3.12" || version.starts_with("3.12.")));
     if !python.is_file() || !managed || !compatible {
-        let mut create = uv_command(app, root)?;
-        create.args(["venv", "--python", "3.12", "--managed-python", "--clear"]).arg(&venv);
-        report.run(&mut create, "Creating the app-managed environment", false)?;
         if root.join(".dependencies-ready").exists() {
             fs::remove_file(root.join(".dependencies-ready")).map_err(|e| e.to_string())?;
         }
+        let mut create = uv_command(app, root)?;
+        create.args(["venv", "--python", "3.12", "--managed-python", "--clear"]).arg(&venv);
+        report.run(&mut create, "Creating the app-managed environment", false)?;
     } else { report.line("Reusing private Python 3.12."); }
 
     report.stage("2/4 · Installing speech dependencies")?;

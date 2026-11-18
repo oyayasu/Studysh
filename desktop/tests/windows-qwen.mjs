@@ -45,6 +45,11 @@ async function openVoice(){
 const setupStatus=()=>js('document.querySelector("#qwen-stage")?.textContent');
 try{
  await until(()=>js('!!document.querySelector("#settings-btn")&&!!window.__TAURI__?.core'),20_000,"desktop IPC");
+ // Seed an existing profile and compare the actual storage keys after installation.
+ await js(`localStorage.setItem("studysh.desktop.v1.entries",JSON.stringify([{term:"hello",language:"English",personalNote:"keep"}]));
+ localStorage.setItem("studysh.desktop.v1.progress",JSON.stringify({earlier:{attempts:4}}));
+ localStorage.setItem("studysh.desktop.v1.furigana","true");
+ window.beforeSetup=[...Object.keys(localStorage)].sort().map(k=>[k,localStorage.getItem(k)]);`);
  await openVoice();
  await action("install-qwen");
  let last="";
@@ -52,7 +57,7 @@ try{
   const status=await setupStatus();
   if(status!==last){console.log(status);last=status;}
   if(await js('!!document.querySelector("#qwen-stage.error")'))throw Error(await js('document.querySelector("#qwen-log").textContent'));
-  return await js('document.querySelector("#qwen-progress")?.value>0');
+  return await js('document.querySelector("#qwen-progress")?.value>16*1024*1024');
  },25*60_000,"measured model download");
  await action("cancel-qwen");
  await until(()=>js('!!document.querySelector(\'[data-action="install-qwen"]\')'),30_000,"safe cancellation");
@@ -64,6 +69,10 @@ try{
   if(await js('!!document.querySelector("#qwen-stage.error")'))throw Error(await js('document.querySelector("#qwen-log").textContent'));
   return status.includes("Installed");
  },30*60_000,"verified offline installation");
+ assert.ok(await js('JSON.stringify(window.beforeSetup)===JSON.stringify([...Object.keys(localStorage)].sort().map(k=>[k,localStorage.getItem(k)]))'),"User profile changed during voice setup");
+ const log=await js('document.querySelector("#qwen-log").textContent');
+ assert.match(log,/Reusing private Python 3.12/);
+ assert.match(log,/Reusing installed dependencies/);
  // Observe the actual HTMLAudioElement created by the app's Test voice button.
  await js(`window.samples=[];const original=HTMLMediaElement.prototype.play;
  HTMLMediaElement.prototype.play=function(){

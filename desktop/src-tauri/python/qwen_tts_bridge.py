@@ -102,6 +102,19 @@ def prepare(model_dir: Path):
         completed += size
 
 
+def hide_helper_windows():
+    # Packages such as python-sox run external probes during import.
+    if os.name == "nt":
+        import subprocess
+
+        class HiddenProcess(subprocess.Popen):
+            def __init__(self, *args, **kwargs):
+                kwargs["creationflags"] = kwargs.get("creationflags", 0) | subprocess.CREATE_NO_WINDOW
+                super().__init__(*args, **kwargs)
+
+        subprocess.Popen = HiddenProcess
+
+
 def load_model(model_dir):
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
@@ -161,6 +174,7 @@ def serve(model_dir: Path):
 
 
 if __name__ == "__main__":
+    hide_helper_windows()
     parser = argparse.ArgumentParser()
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--prepare", action="store_true")
