@@ -46,6 +46,8 @@ test("Qwen3 automatically provisions its own Python instead of demanding a syste
  assert.match(rust,/--managed-python/);
  assert.ok(rust.includes('"3.12", "--managed-python"'));
  assert.match(rust,/UV_PYTHON_INSTALL_DIR/);
+ assert.ok(rust.includes('.env_remove("UV_PYTHON_PREFERENCE")'));
+ assert.ok(!rust.includes('.env("UV_PYTHON_PREFERENCE"'));
  assert.doesNotMatch(rust,/fn compatible_python/);
  assert.ok(config.includes("resources/uv.exe"));
  assert.match(ui,/No separate Python setup required/);
