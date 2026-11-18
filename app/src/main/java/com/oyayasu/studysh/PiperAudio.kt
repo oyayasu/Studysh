@@ -165,6 +165,7 @@ class StudyshPiper(private val context:Context){
 @Composable
 fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
  val context=androidx.compose.ui.platform.LocalContext.current
+ val supertonic=remember { SupertonicModels(context.applicationContext) }
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
   verticalArrangement=Arrangement.spacedBy(18.dp)){
   Row(verticalAlignment=Alignment.CenterVertically){
@@ -195,13 +196,17 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
   }
   }
   Text("日本語 · Supertonic 3",style=MaterialTheme.typography.titleLarge)
+  Text(if(supertonic.installed())"Supertonic model files installed" else "Supertonic 3 model download · approximately 400 MB",style=MaterialTheme.typography.bodySmall)
+  if(supertonic.busy)LinearProgressIndicator(progress={supertonic.progress},modifier=Modifier.fillMaxWidth())
+  if(!supertonic.installed())Button(onClick={supertonic.install()},enabled=!supertonic.busy){Text("Download Supertonic 3")}
+  if(supertonic.status.isNotBlank())Text(supertonic.status,style=MaterialTheme.typography.bodySmall)
   Text("Sarah and Lily use the Supertonic engine (not Piper). Model installation and offline playback require a separate engine integration.",style=MaterialTheme.typography.bodySmall)
   listOf("Sarah" to "F1","Lily" to "F2").forEach{(name,id)->
    ElevatedCard(Modifier.fillMaxWidth()){
     Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
      Column(Modifier.weight(1f)){
       Text("$name · Supertonic $id",style=MaterialTheme.typography.titleMedium)
-      Text("Japanese · Engine integration pending",style=MaterialTheme.typography.bodySmall)
+      Text(if(supertonic.installed())"Japanese · Model downloaded · Playback not yet implemented" else "Japanese · Download engine assets first",style=MaterialTheme.typography.bodySmall)
      }
      OutlinedButton(onClick={android.content.Intent(android.content.Intent.ACTION_VIEW,
       android.net.Uri.parse("https://huggingface.co/spaces/Supertone/supertonic-3")).also{
