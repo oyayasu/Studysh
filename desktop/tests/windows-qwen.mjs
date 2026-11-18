@@ -12,11 +12,18 @@ async function until(fn, timeout, label){
  }
  throw Error("Timed out waiting for "+label);
 }
+let previousTargets="";
 const target=await until(async()=>{
  try{
   const pages=await (await fetch("http://127.0.0.1:9222/json/list")).json();
-  return pages.find(p=>p.type==="page"&&p.url.includes("tauri.localhost"));
- }catch{return false;}
+  const summary=JSON.stringify(pages.map(({type,url,title})=>({type,url,title})));
+  if(previousTargets!==summary){console.log("WebView2 targets",summary);previousTargets=summary;}
+  return pages.find(p=>p.webSocketDebuggerUrl&&(p.url.includes("tauri.localhost")||p.title==="Studysh"||p.url.startsWith("tauri://"))) ||
+    pages.find(p=>p.webSocketDebuggerUrl&&["page","webview"].includes(p.type));
+ }catch(e){
+  if(previousTargets!==e.message){console.log("Waiting for WebView2:",e.message);previousTargets=e.message;}
+  return false;
+ }
 },90_000,"Studysh WebView2");
 const ws=new WebSocket(target.webSocketDebuggerUrl);
 await new Promise((ok,fail)=>{ws.onopen=ok;ws.onerror=fail;});
