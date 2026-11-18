@@ -56,8 +56,8 @@ class StudyshPiper(private val context:Context){
  private val root=File(context.filesDir,"piper-voices").apply{mkdirs()}
  private fun ensureEspeakData(){
   val destination=File(context.filesDir,"espeak-ng-data")
-  val marker=File(destination,".studysh-ready")
-  if(marker.isFile)return
+  val marker=File(destination,".studysh-ready-2-en-pt-es")
+  if(marker.isFile && listOf("en","pt","es").all{File(destination,"${it}_dict").length()>0})return
   fun copyAssets(assetPath:String,target:File){
    val children=context.assets.list(assetPath)?:emptyArray()
    if(children.isEmpty()){

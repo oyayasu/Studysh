@@ -84,6 +84,8 @@ class SupertonicSpeech(context: Context) {
             } catch (e: Exception) {
                 runCatching { engine?.close() }; engine = null
                 update { error = "Supertonic playback failed: ${e.localizedMessage}"; message = "" }
+            } catch (e: LinkageError) {
+                update { error = "Supertonic native runtime could not be loaded: ${e.localizedMessage}"; message = "" }
             } catch (_: OutOfMemoryError) {
                 runCatching { engine?.close() }; engine = null
                 update { error = "Not enough memory for Supertonic. Close other apps and try again."; message = "" }

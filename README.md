@@ -37,10 +37,7 @@ Requires JDK 17, Gradle 8.11.1, Android SDK 35 / build-tools 35.0.0, NDK
 git clone --recurse-submodules https://github.com/piper-tts-apps/piper-kotlin.git
 git -C piper-kotlin checkout 287b89079336d0d02f02d2bc96e93b7ca1e72bc5
 git -C piper-kotlin submodule update --init --recursive
-bash piper-kotlin/scripts/fetch-native-deps.sh
-bash piper-kotlin/scripts/stage-espeak-data.sh
-mkdir -p app/src/main/assets/espeak-ng-data
-cp -a piper-kotlin/third-party/espeak-ng/build/espeak-ng-data/. app/src/main/assets/espeak-ng-data/
+bash scripts/prepare-piper.sh
 gradle :app:testDebugUnitTest :app:assembleDebug
 ```
 

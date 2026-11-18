@@ -37,7 +37,7 @@ fun SupertonicVoiceSettings(speech: SupertonicSpeech) {
                         OutlinedButton(onClick = { speech.preview(voice) }, enabled = !speech.busy) { Text("Test voice") }
                     } else {
                         Button(onClick = { models.install(voice) }, enabled = !models.busy) {
-                            Text(if (models.installed()) "Download $voice profile" else "Download $voice + models")
+                            Text(if (models.coreInstalled()) "Download $voice profile" else "Download $voice + models")
                         }
                     }
                 }

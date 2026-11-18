@@ -23,9 +23,10 @@ class SupertonicModels(context: Context) {
 
     init {
         job = scope.launch {
+            val operation = currentCoroutineContext()
             try {
-                verified = withContext(Dispatchers.IO) { store.verifiedPaths(SupertonicAssets.all) }
-                status = if (installed("F1")) "Supertonic 3 · Offline ready" else "Download F1 to enable Japanese audio."
+                verified = withContext(Dispatchers.IO) { store.verifiedPaths(SupertonicAssets.all) { !operation.isActive } }
+                status = if (SupertonicAssets.voices.any { installed(it) }) "Supertonic 3 · Offline ready" else "Download F1 to enable Japanese audio."
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
                 error = "Could not check voice files: ${e.localizedMessage}"
@@ -34,6 +35,7 @@ class SupertonicModels(context: Context) {
     }
 
     fun installed(voice: String = "F1") = SupertonicAssets.forVoice(voice).all { it.path in verified }
+    fun coreInstalled() = SupertonicAssets.core.all { it.path in verified }
 
     fun install(voice: String = "F1") {
         if (busy || installed(voice)) return
@@ -51,6 +53,7 @@ class SupertonicModels(context: Context) {
                         if (now - lastUpdate >= 150_000_000L || state.downloaded == state.total) {
                             lastUpdate = now
                             scope.launch {
+                                if (!operation.isActive) return@launch
                                 downloadedBytes = state.downloaded; totalBytes = state.total
                                 progress = (state.downloaded.toDouble() / state.total).toFloat().coerceIn(0f, 1f)
                                 status = "Downloading / verifying ${state.path}"
