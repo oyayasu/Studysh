@@ -3,6 +3,7 @@ import {LANGUAGES,canonical,languageId,lessonKey,validEntries,parsePayload,merge
 import {dueAt,review,migrateLegacy} from "./fsrs.js";
 import {buildPrompt} from "./prompt.js";
 import {mascot} from "./mascot.js";
+import {icon,mountStaticIcons} from "./icons.js";
 
 const STORE="studysh.desktop.v1.";
 const $=(id)=>document.getElementById(id);
@@ -18,6 +19,7 @@ const state={
   selected:null,filter:"All",search:"",terms:[blank()],session:null
 };
 const renderRoot=$("content"),modal=$("modal"),backdrop=$("modal-backdrop");
+mountStaticIcons();
 let toastTimer;
 function save(){localStorage.setItem(STORE+"entries",JSON.stringify(state.entries));localStorage.setItem(STORE+"progress",JSON.stringify(state.progress));}
 function persistSetting(name,value){localStorage.setItem(STORE+name,String(value));}
@@ -95,7 +97,7 @@ function viewCreate(){
  '<div class="card" style="margin-bottom:16px"><div class="row spread"><div><label class="field">Study language</label><p class="muted small" style="margin:0">The prompt and practice content follow this language.</p></div>'+
  '<select class="field-select" id="study-language" style="max-width:230px">'+LANGUAGES.map(l=>'<option '+(l===state.language?"selected":"")+'>'+l+'</option>').join("")+'</select></div></div>'+
  state.terms.map(queryCard).join("")+
- '<div class="sticky-actions"><button class="quiet" data-action="add-term" '+(state.terms.length>=5?"disabled":"")+'>+ Add term</button>'+
+ '<div class="sticky-actions"><button class="quiet" data-action="add-term" '+(state.terms.length>=5?"disabled":"")+'>' + icon("plus",16) + ' Add term</button>'+
  '<button class="secondary" data-action="open-import">Import AI response</button>'+
  '<button class="primary" data-action="generate-prompt" '+(!state.terms.some(t=>t.term.trim())?"disabled":"")+'>Generate prompt</button></div></div>';
 }
@@ -107,12 +109,12 @@ function viewLessons(){
  return '<div class="content-width">'+heading("YOUR LIBRARY","Lessons","Your imported lessons, separated by language.")+
  '<div class="row spread" style="margin-bottom:18px;flex-wrap:wrap"><div class="lang-tabs">'+["All",...LANGUAGES]
  .map(l=>tabButton(l,l===state.filter,"lesson-filter")).join("")+'</div>'+
- '<div class="searchbar">⌕ <input aria-label="Search lessons" id="lesson-search" placeholder="Search lessons..." value="'+esc(state.search)+'"></div></div>'+
+ '<div class="searchbar">' + icon("search",18) + '<input aria-label="Search lessons" id="lesson-search" placeholder="Search lessons..." value="'+esc(state.search)+'"></div></div>'+
  (list.length?'<div class="lesson-grid">'+list.map(entry=>'<button class="lesson-card" data-action="open-lesson" data-key="'+esc(lessonKey(entry))+'">'+
- '<div class="lesson-top"><span class="pill">'+esc(canonical(entry.language))+'</span><span class="muted">›</span></div>'+
+ '<div class="lesson-top"><span class="pill">'+esc(canonical(entry.language))+'</span><span class="muted">' + icon("chevron-right",18) + '</span></div>'+
  '<strong>'+esc(entry.term)+'</strong><p>'+esc(entry.pronunciation||entry.partOfSpeech||"Lesson")+'</p>'+
  '<div class="small muted">'+(Array.isArray(entry.blocks)?entry.blocks.length:(entry.notes?.length||0))+' notes</div></button>').join("")+'</div>':
- '<div class="empty"><div style="font-size:36px">▤</div><h2>No lessons found</h2>'+
+ '<div class="empty"><div style="font-size:36px">' + icon("book-open",36) + '</div><h2>No lessons found</h2>'+
  '<p>Import a Studysh JSON lesson to build your library.</p><button class="secondary" data-action="open-import">Import JSON</button></div>')+'</div>';
 }
 function viewLesson(entry){
@@ -122,15 +124,15 @@ function viewLesson(entry){
   const examples=(Array.isArray(b.examples)?b.examples:[]).map(ex=>
     '<div class="example"><p>'+rubyHtml(String(ex.en||""),entry.furigana,state.furigana && canonical(entry.language)==="Japanese")+
     '</p><p>'+esc(ex.pt||"")+'</p><button class="quiet small" data-action="speak" data-speech="'+esc(ex.en||"")+
-    '" data-language="'+esc(entry.language)+'">▶ Listen</button></div>').join("");
+    '" data-language="'+esc(entry.language)+'">' + icon("volume-2",16) + ' Listen</button></div>').join("");
   return '<section class="block '+color+'"><h3>'+esc(b.title||"Explanation")+'</h3>'+markdown(b.text||b.content||"")+examples+'</section>';
  }).join("");
  const notes=Array.isArray(entry.personalNotes)?entry.personalNotes:[];
- return '<div class="content-width" style="max-width:910px"><button class="back-link" data-action="back-lessons">← All lessons</button>'+
+ return '<div class="content-width" style="max-width:910px"><button class="back-link" data-action="back-lessons">' + icon("arrow-left",16) + ' All lessons</button>'+
  '<div class="card lesson-header"><div><span class="pill">'+esc(canonical(entry.language))+'</span>'+
  '<h1 class="lesson-term">'+rubyHtml(entry.term,entry.furigana,state.furigana && canonical(entry.language)==="Japanese")+'</h1>'+
  '<div class="lesson-pronunciation">'+esc(entry.pronunciation||"")+' '+esc(entry.partOfSpeech||"")+'</div></div>'+
- '<div class="row"><button class="quiet" data-action="speak" data-speech="'+esc(entry.term)+'" data-language="'+esc(entry.language)+'">▶ Listen</button>'+
+ '<div class="row"><button class="quiet" data-action="speak" data-speech="'+esc(entry.term)+'" data-language="'+esc(entry.language)+'">' + icon("volume-2",16) + ' Listen</button>'+
  '<button class="quiet" data-action="edit-lesson">Edit JSON</button><button class="danger" data-action="delete-lesson">Delete</button></div></div>'+
  (html||'<div class="empty"><p>No lesson blocks in this entry.</p></div>')+
  '<section class="card" style="margin-top:20px"><h2>Personal notes</h2><p class="muted small">Saved locally and preserved when reimporting this term.</p>'+
@@ -175,9 +177,9 @@ function viewSession(){
  '<p class="muted small">How well did you remember? '+(correct?"Suggested: Good.":"Incorrect answers are scheduled as Again.")+'</p>'+
  '<div class="rating-group">'+["Again","Hard","Good","Easy"].map((v,i)=>'<button data-action="choose-rating" data-rating="'+(i+1)+
  '" class="'+(se.rating===i+1?"active":"")+'" '+(!correct&&i>0?"disabled":"")+'>'+v+'</button>').join("")+'</div>'+
- '<button class="primary wide" data-action="next-question">Continue →</button>':
+ '<button class="primary wide" data-action="next-question">Continue ' + icon("arrow-right",17) + '</button>':
  '<button class="primary wide" data-action="check-answer" '+(usable?"":"disabled")+'>Check answer</button>';
- return '<div class="content-width"><div class="row" style="margin-bottom:18px"><button class="quiet" data-action="finish-session">✕</button>'+
+ return '<div class="content-width"><div class="row" style="margin-bottom:18px"><button class="quiet" data-action="finish-session">' + icon("x",20) + '</button>'+
  '<div class="progress-track"><div class="progress-fill" style="width:'+((se.index+1)/se.questions.length*100)+'%"></div></div>'+
  '<span class="muted small">'+(se.index+1)+'/'+se.questions.length+'</span></div>'+
  '<div class="practice-layout"><div class="card mascot-card">'+mascot(se.checked?(correct?"happy":"sad"):"idle")+'</div>'+
@@ -188,7 +190,7 @@ function viewSession(){
 }
 function setLanguage(value){state.language=canonical(value);persistSetting("language",state.language);render();}
 function modalShow(title,content,actions=""){
- modal.innerHTML='<div class="modal-top"><h2 id="modal-title">'+esc(title)+'</h2><button class="icon-btn" data-action="close-modal" aria-label="Close">×</button></div>'+
+ modal.innerHTML='<div class="modal-top"><h2 id="modal-title">'+esc(title)+'</h2><button class="icon-btn" data-action="close-modal" aria-label="Close">' + icon("x",20) + '</button></div>'+
  content+'<div class="modal-actions">'+actions+'</div>';
  backdrop.hidden=false;
 }
