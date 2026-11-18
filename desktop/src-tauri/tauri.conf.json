@@ -35,6 +35,9 @@
       "nsis": {
         "displayLanguageSelector": false
       }
-    }
+    },
+    "resources": [
+      "resources/uv.exe"
+    ]
   }
 }
