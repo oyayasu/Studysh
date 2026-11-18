@@ -192,7 +192,10 @@ private fun recoverCompleteEntries(raw:String):List<JSONObject> {
     if(StudyLanguage.showFurigana(studyLanguage,selected?.language,if(page==2 && selected==null)practiceLanguage else null)){
      IconToggleButton(checked=furiganaEnabled,onCheckedChange={value->furiganaEnabled=value;uiPrefs.edit().putBoolean("furigana",value).apply();sounds.play(SoundCue.Tap)},
       modifier=Modifier.testTag("furigana-toggle").semantics{contentDescription="Furigana";stateDescription=if(furiganaEnabled)"On" else "Off"}){
-      Column(horizontalAlignment=Alignment.CenterHorizontally){Text("ふ",fontSize=9.sp,lineHeight=9.sp);Text("漢",fontSize=19.sp,lineHeight=21.sp,color=if(furiganaEnabled)Color(0xFF956DCE) else Muted)}
+      Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){
+       Text("ふ",fontSize=25.sp,lineHeight=28.sp,fontWeight=FontWeight.Medium,
+        textAlign=TextAlign.Center,color=if(furiganaEnabled)Color(0xFF956DCE) else Muted)
+      }
      }
     }
     IconButton(onClick={settingsWindow=SettingsWindow.Settings},modifier=Modifier.testTag("global-settings")){Icon(Icons.Outlined.Tune,"Settings")}
