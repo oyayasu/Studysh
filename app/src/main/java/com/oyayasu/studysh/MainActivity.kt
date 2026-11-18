@@ -194,7 +194,7 @@ private fun recoverCompleteEntries(raw:String):List<JSONObject> {
       modifier=Modifier.testTag("furigana-toggle").semantics{contentDescription="Furigana";stateDescription=if(furiganaEnabled)"On" else "Off"}){
       Box(Modifier.fillMaxSize(),contentAlignment=Alignment.Center){
        Text("ふ",fontSize=25.sp,lineHeight=28.sp,fontWeight=FontWeight.Medium,
-        textAlign=TextAlign.Center,color=if(furiganaEnabled)Color(0xFF956DCE) else Muted)
+        textAlign=androidx.compose.ui.text.style.TextAlign.Center,color=if(furiganaEnabled)Color(0xFF956DCE) else Muted)
       }
      }
     }
