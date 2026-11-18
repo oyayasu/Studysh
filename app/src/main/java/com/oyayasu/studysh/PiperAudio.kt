@@ -39,6 +39,7 @@ val PIPER_VOICES=listOf(
 )
 class StudyshPiper(private val context:Context){
  val japanese=JapaneseDeviceSpeech(context)
+ val voicevox=VoicevoxSpeech(context)
  private val preferences=context.getSharedPreferences("piper",Context.MODE_PRIVATE)
  private val worker=Executors.newSingleThreadExecutor()
  private val player=PiperPlayer()
@@ -142,7 +143,7 @@ class StudyshPiper(private val context:Context){
   speak(sample)
  }
  fun speak(text:String,language:String="English"){
-  if(language=="Japanese"){japanese.speak(text);return}
+  if(language=="Japanese"){voicevox.speak(text);return}
   if(text.isBlank())return
   val voice=PIPER_VOICES.firstOrNull{it.id==activeVoice}?:PIPER_VOICES[0]
   if(!installed(voice)){message="Download ${voice.label} in Voice settings first.";return}
@@ -161,8 +162,8 @@ class StudyshPiper(private val context:Context){
    }catch(e:Exception){message="Piper playback failed: ${e.localizedMessage}"}
   }
  }
- fun stop(){player.stop();japanese.stop()}
- fun close(){player.stop();japanese.close();worker.execute{engine?.close();engine=null};worker.shutdown()}
+ fun stop(){player.stop();japanese.stop();voicevox.stop()}
+ fun close(){player.stop();japanese.close();voicevox.close();worker.execute{engine?.close();engine=null};worker.shutdown()}
 }
 @Composable
 fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
@@ -197,16 +198,18 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
    }
   }
   }
-  Text("日本語 · Android speech (available now)",style=MaterialTheme.typography.titleLarge)
-  Text(piper.japanese.status,style=MaterialTheme.typography.bodySmall)
-  if(piper.japanese.voices.isEmpty())Text("Install Japanese voice data through your Android text-to-speech settings.",style=MaterialTheme.typography.bodySmall)
-  piper.japanese.voices.forEach { voice ->
-   Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-    RadioButton(selected=piper.japanese.selected==voice.name,onClick={piper.japanese.choose(voice.name)})
-    Text(voice.name+(if(voice.isNetworkConnectionRequired)" · Internet required" else " · Offline"),Modifier.weight(1f),style=MaterialTheme.typography.bodySmall)
-    OutlinedButton(onClick={piper.japanese.speak("こんにちは。日本語の発音を練習しましょう。")}){Text("Listen")}
-   }
+  Text("日本語 · VOICEVOX · 四国めたん",style=MaterialTheme.typography.titleLarge)
+  Text("Female Japanese voice · VOICEVOX Engine on your computer (same Wi-Fi). The Android app connects to the engine; no device TTS is used.",style=MaterialTheme.typography.bodySmall)
+  var engineAddress by remember { mutableStateOf(piper.voicevox.endpoint) }
+  var voicevoxEnabled by remember { mutableStateOf(piper.voicevox.enabled) }
+  OutlinedTextField(value=engineAddress,onValueChange={engineAddress=it},label={Text("VOICEVOX Engine URL")},placeholder={Text("http://192.168.1.10:50021")},singleLine=true,modifier=Modifier.fillMaxWidth())
+  Row(verticalAlignment=Alignment.CenterVertically) {
+   Checkbox(checked=voicevoxEnabled,onCheckedChange={voicevoxEnabled=it})
+   Text("Use VOICEVOX for Japanese lessons")
   }
+  Button(onClick={piper.voicevox.configure(engineAddress,voicevoxEnabled)}){Text("Save VOICEVOX settings")}
+  OutlinedButton(onClick={piper.voicevox.configure(engineAddress,voicevoxEnabled);piper.voicevox.speak("こんにちは。日本語を一緒に勉強しましょう。")},enabled=!piper.voicevox.busy){Text("Test Shikoku Metan")}
+  if(piper.voicevox.message.isNotBlank())Text(piper.voicevox.message,style=MaterialTheme.typography.bodySmall)
   Text("日本語 · Supertonic 3 (experimental)",style=MaterialTheme.typography.titleLarge)
   Text(if(supertonic.installed())"Supertonic model files installed" else "Supertonic 3 model download · approximately 400 MB",style=MaterialTheme.typography.bodySmall)
   if(supertonic.busy)LinearProgressIndicator(progress={supertonic.progress},modifier=Modifier.fillMaxWidth())
