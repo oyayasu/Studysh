@@ -27,7 +27,7 @@ fun SupertonicVoiceSettings(speech: SupertonicSpeech) {
         val installed = models.installed(voice)
         ElevatedCard(Modifier.fillMaxWidth()) {
             Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                Text("$voice · Female · Japanese", style = MaterialTheme.typography.titleMedium)
+                Text("${if (voice == "F1") "Sarah" else "Lily"} · Female · Japanese", style = MaterialTheme.typography.titleMedium)
                 Text(if (installed) "Installed · Offline ready" else "Not installed", style = MaterialTheme.typography.bodySmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     if (installed) {
