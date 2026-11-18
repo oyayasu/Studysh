@@ -16,9 +16,32 @@ An offline-first vocabulary learning workspace for Android, with a future Window
 3. Copy the resulting JSON into **Import AI response**, or save it as a .json file and use the import icon.
 4. Browse imported terms in Library.
 
-## Offline Japanese audio (0.10.1)
+## Navigation and Japanese study (0.11.0)
 
-Open **Settings → Voice settings → 日本語 · Supertonic 3**, download **Sarah + models**,
+Home, Create, Lessons and Practice are the four main tabs. Settings is available
+in the header everywhere; **Settings → Voice** opens voice management in its own
+window. The download-arrow icon imports JSON/backups, and the upload-arrow icon
+exports a backup, retaining the icons' original positions.
+
+The furigana toggle sits beside Settings when Japanese study mode is selected.
+It also appears inside Japanese lessons and Japanese practice even if another
+study language is selected. Readings appear above kanji, use a bundled offline
+Kuromoji/IPADIC dictionary, and preserve kana suffixes. The toggle is saved between
+launches. The Japanese prompt requests normal Japanese without parenthetical
+readings; optional entry-level `furigana` metadata can override ambiguous readings:
+`"furigana":[{"text":"生","reading":"なま"}]`. Dictionary readings of names and
+ambiguous words may need such an override.
+
+Practice has a separate language selector, question bank and review history for
+each language. Identical terms in different languages can coexist on import.
+Legacy review history is retained where its original language is unambiguous.
+The mascot reacts with anticipation, hops, paw gestures, blinks, blush and sparkles.
+Short, quiet cartoon sounds accompany tile selection, checking, continuing and
+finishing; disable them with **Settings → Sound effects**. They respect silent mode.
+
+## Offline Japanese audio
+
+Open **Settings → Voice → 日本語 · Supertonic 3**, download **Sarah + models**,
 then tap **Test voice**. After installation, lesson term and example audio buttons
 use the selected Supertonic profile entirely on device, including in airplane mode.
 Only **Sarah (F1)** and **Lily (F2)** are offered for Japanese; shared ONNX models download once (~399 MB), with each

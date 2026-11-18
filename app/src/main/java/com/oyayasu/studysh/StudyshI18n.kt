@@ -18,6 +18,8 @@ object StudyshI18n {
   "Lessons" to listOf("Lições","Lecciones","レッスン"),
   "Practice" to listOf("Prática","Práctica","練習"),
   "Voice" to listOf("Voz","Voz","音声"),
+  "Sound effects" to listOf("Efeitos sonoros","Efectos de sonido","効果音"),
+  "Quiet cartoon sounds during practice" to listOf("Sons discretos de cartoon durante a prática","Sonidos discretos de cartoon durante la práctica","練習中の控えめでかわいい効果音"),
   "Welcome to Studysh" to listOf("Boas-vindas ao Studysh","Bienvenido a Studysh","Studyshへようこそ"),
   "New search" to listOf("Nova pesquisa","Nueva búsqueda","新しい検索"),
   "Add term" to listOf("Adicionar termo","Añadir término","単語を追加"),

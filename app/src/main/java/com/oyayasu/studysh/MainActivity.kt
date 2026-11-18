@@ -17,6 +17,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -35,9 +40,6 @@ private val Ink=Color(0xFF17191C)
 private val Muted=Color(0xFF74777D)
 private val Canvas=Color(0xFFFCFBFE)
 private val Pastels=listOf(Color(0xFFF9F0E4),Color(0xFFEAF1FB),Color(0xFFE7F5EE),Color(0xFFF5ECF5),Color(0xFFFFF3DF),Color(0xFFEBF2F3))
-data class StudyQuery(val term:String="",val context:String="",val sentence:String="",val doubt:String="")
-data class Note(val title:String,val type:String,val content:String,val examples:List<Pair<String,String>> = emptyList())
-data class Entry(val term:String,val pronunciation:String,val status:String,val notes:List<Note>,val original:String,val partOfSpeech:String="",val language:String="English")
 class MainActivity:ComponentActivity(){
  override fun onCreate(savedInstanceState:Bundle?){super.onCreate(savedInstanceState)
   setContent { StudyshApp(
@@ -99,104 +101,14 @@ private fun recoverCompleteEntries(raw:String):List<JSONObject> {
  }
  return found
 }
-private fun parseEntries(raw:String):List<Entry>{
- val root=JSONObject(raw);val arr=root.optJSONArray("entries")?:JSONArray()
- return (0 until arr.length()).mapNotNull { i ->
-  val obj=arr.optJSONObject(i)?:return@mapNotNull null
-  val blocks=obj.optJSONArray("blocks")?:obj.optJSONArray("notes")?:JSONArray()
-  val notes=(0 until blocks.length()).mapNotNull { j ->
-   blocks.optJSONObject(j)?.let { block ->
-    val examples=block.optJSONArray("examples")?:JSONArray()
-    Note(block.optString("title","Explanation"),block.optString("style",block.optString("type","purple")),
-     block.optString("text",block.optString("content","")),
-     (0 until examples.length()).mapNotNull { k -> examples.optJSONObject(k)?.let{ex -> Pair(ex.optString("en"),ex.optString("pt"))} })
-   }
-  }
-  Entry(obj.optString("term"),obj.optString("pronunciation"),obj.optString("status",""),notes,obj.toString(),obj.optString("partOfSpeech"),obj.optString("language","English"))
- }.filter { it.term.isNotBlank() }
-}
-private fun prompt(queries:List<StudyQuery>,language:String):String {
- val requested=JSONArray()
- queries.filter{it.term.isNotBlank()}.forEach { q ->
-  requested.put(JSONObject().put("term",q.term.trim()).put("context",q.context.trim())
-   .put("originalSentence",q.sentence.trim()).put("specificQuestion",q.doubt.trim()))
- }
- val target=when(language){"Japanese"->"natural Japanese";"Spanish"->"natural Latin American Spanish";"Portuguese"->"natural Brazilian Portuguese";else->"natural American English"}
- val sampleLanguage=when(language){"Japanese"->"Japanese";"Spanish"->"Spanish";"Portuguese"->"Portuguese";else->"English"}
- val languageGuidance=when(language){
-  "Japanese"->"Teach natural Japanese: kana and kanji, readings when useful, particles, verb forms, politeness levels, sentence structure, collocations and idiomatic usage. Provide romaji only when it helps pronunciation, never instead of Japanese writing. Avoid inventing exact one-to-one equivalents of Portuguese grammar."
-  "Spanish"->"Teach natural Latin American Spanish, noting major regional variation when it changes usage. Cover gender, agreement, verb conjugations, prepositions, register, collocations and false cognates with Brazilian Portuguese. Do not overstate differences between regional varieties."
-  "Portuguese"->"Teach natural Brazilian Portuguese to a Brazilian Portuguese speaker who wants to deepen native-language mastery. Focus on meaning, nuance, register, regional usage, collocations, grammar, word choice, idiomatic expression, writing and speaking. Explain in Brazilian Portuguese and use authentic Brazilian Portuguese examples. Do not frame Portuguese as a foreign language or invent English translations."
-  else->"Teach natural American English, including register, constructions, collocations and idiomatic use."
- }
- return """
-ROLE
-You are a private teacher of ${target} for a Brazilian Portuguese ${if(language=="Portuguese") "native speaker" else "learner"}. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
-
-REQUESTS — analyze each independently; context and source sentence belong ONLY to their own term:
-${requested.toString(2)}
-
-PEDAGOGY — follow all principles, but select only relevant material per term:
-1. Start with a concise CENTRAL MENTAL MODEL in Brazilian Portuguese: what the term communicates, implies, emphasizes, and how its meanings relate. Do not reduce it to a memorized translation. Separate truly unrelated senses rather than forcing a false common definition.
-2. If a context is provided, explain that sense FIRST and explain its role in the original sentence if provided. Context is a freely written subject or situation, not a media category, and is a STARTING POINT, never a restriction. Expand to other useful senses and ordinary contexts. If a specificQuestion is provided, answer it directly while still teaching the necessary foundations. If parentheses mark part of an expression, prioritize that part within the whole construction. If the source is incomplete, do not invent intent; acknowledge genuine ambiguity only where needed.
-3. Compare near alternatives ONLY when it changes interpretation or word choice. Explain differences in connotation, intensity, register, frequency, naturalness, syntax, and Portuguese interference. Do not invent hard distinctions where words overlap.
-4. Teach productive constructions explicitly: TERM + preposition/complement/clause, what can fill each slot, important restrictions, related forms, derived constructions, and typical collocations. Distinguish productive grammar from fixed phrases and typical word partnerships. Cover the important patterns without endless interchangeable examples.
-5. Give genuinely natural ${sampleLanguage} sentences paired with idiomatic Brazilian Portuguese. Each example must add something: a basic use, variation, nuance, another context, or restriction. Explain significant peculiarities immediately. Avoid contrived sentences.
-6. Address realistic mistakes: unnatural literal translation, incorrect prepositions, misleading near synonyms, inappropriate formality, and constructions that are possible but unusual. Never label uncommon language as categorically wrong.
-7. Adapt depth to complexity; anticipate useful doubts without repetition, trivia, etymology, generic introductions, inspirational language, conclusions, or compulsory sections. Do NOT put quizzes inside the lesson: exercises are a separate dataset.
-8. Write primarily in clear Brazilian Portuguese, preserving ${sampleLanguage} terms, patterns, and example sentences. Use compact, elegant Markdown: **bold** for central patterns, *italics* when helpful, short paragraphs and lists only when useful. Order ideas so one leads logically to the next. Keep the reading experience like a well-formatted ChatGPT teaching response.
-9. Before finalizing, verify that the learner can understand the concept, recognize it across contexts, distinguish important alternatives, identify its natural constructions and collocations, and build original sentences.
-
-LANGUAGE-SPECIFIC GUIDANCE
-${languageGuidance}
-All entries MUST set "language" to "${sampleLanguage}". The target language is ${sampleLanguage}; generate examples, answers and exercises in the selected target language. For Portuguese, both examples and their interpretations should be Brazilian Portuguese; use the "en" example field for the target-language sentence and "pt" for its Brazilian Portuguese explanation, to preserve app compatibility.
-
-EXERCISE DESIGN
-Generate a compact but meaningful practice bank grounded in the ACTUAL taught meanings, patterns and nuances. Prefer these modes:
-- "complete": choose the missing word/preposition or phrase in a natural ${sampleLanguage} sentence;
-- "build": assemble a natural sentence from shuffled word/phrase tiles;
-- "choice": choose the most natural expression in a given context.
-Use "recognition", "construction", "nuance", or "production" as the skill, selecting what the question genuinely tests.
-For each exercise, give a stable ID unique within its entry, a skillId matching one of the knowledge skills, clear Brazilian Portuguese instructions, an optional ptPrompt for meaning/context, answer and short Brazilian Portuguese explanation of WHY. For multiple-choice: exactly one unambiguously best answer, plausible distractors, and avoid accidental alternative correct readings. For build: tiles must contain exactly the fragments needed, with an unambiguous order and a canonical answer; do not use punctuation as separate tiles. No misleading artificial sentences. Include enough variety to test recognition and pattern use, without fixed quotas or duplicating the same fact.
-Knowledge skill IDs must be short stable semantic identifiers (e.g. "meaning-transfer", "pattern-convey-to"), not positional numbers. Patterns and exercises reference these IDs. Never claim that multiple-choice success alone proves productive mastery.
-Do not generate arbitrary spaced-repetition intervals, scores, timestamps, mastery or review dates. Those belong to the app's LOCAL progress store and future FSRS scheduler, not AI content.
-The AI cannot reliably evaluate unrestricted original sentences using exact-string comparison. Do not create open-ended exercises requiring automatic semantic grading.
-
-OUTPUT — STRICT, COMPLETE JSON ONLY, no fences or commentary.
-Use schemaVersion "3.0", with this English example as a STRUCTURAL MODEL only. Translate/adapt every sample term, example, answer, tile, skill and exercise into ${sampleLanguage} when the selected language is not English:
-{
- "schemaVersion":"3.0",
- "entries":[{
-  "term":"convey","language":"English","pronunciation":"/kənˈveɪ/","partOfSpeech":"verb",
-  "context":"Art — composition","originalSentence":"",
-  "blocks":[
-   {"id":"concept","style":"purple","title":"Ideia central","text":"Texto didático com **destaques**."},
-   {"id":"patterns","style":"blue","title":"Construções","text":"**convey something to someone** — ..."},
-   {"id":"examples","style":"green","title":"Exemplos naturais","examples":[{"en":"The painting conveys a sense of depth.","pt":"A pintura transmite uma sensação de profundidade."}]}
-  ],
-  "knowledge":{
-   "skills":[{"id":"meaning-transfer","label":"Meaning and recognition","type":"recognition"},
-             {"id":"pattern-convey-to","label":"Convey something to someone","type":"construction"}],
-   "patterns":[{"id":"convey-to","skillId":"pattern-convey-to","structure":"convey + something + to + someone","explanation":"Transmitir algo a alguém.","examples":["convey a message to the audience"]}],
-   "collocations":[{"expression":"convey emotion","meaning":"transmitir emoção","skillId":"meaning-transfer"}],
-   "nuances":[{"expression":"convey vs show","explanation":"Diferença relevante, sem absolutismos.","skillId":"meaning-transfer"}]
-  },
-  "exercises":[
-   {"id":"convey-to-01","type":"complete","skillId":"pattern-convey-to","instruction":"Complete the sentence.","sentence":"She conveyed the idea ___ her team.","options":["to","for","at","with"],"answer":"to","explanation":"Usamos **convey something to someone**."},
-   {"id":"convey-build-01","type":"build","skillId":"pattern-convey-to","instruction":"Build the sentence.","ptPrompt":"O artista transmitiu uma mensagem ao público.","tiles":["to the audience.","The artist","conveyed","a message"],"answer":"The artist conveyed a message to the audience.","explanation":"A ordem é sujeito + convey + conteúdo + to + destinatário."},
-   {"id":"convey-choice-01","type":"choice","skillId":"meaning-transfer","instruction":"Choose the most natural sentence.","ptPrompt":"Escolha a frase adequada ao contexto.","options":["The drawing conveys a sense of movement.","The drawing conveys a sense of movement to."],"answer":"The drawing conveys a sense of movement.","explanation":"Não se usa **to** sem complemento."}
-  ]
- }]
-}
-For blocks, titles are free and sections are optional. Style colors: purple=concept, blue=patterns, green=examples, yellow=nuance, rose=caveat, plain=neutral. Do not repeat the structured knowledge data verbatim in every block. Knowledge is machine-readable metadata; blocks are the readable lesson. Each exercise must refer to a defined skillId. Every answer must be exactly reconstructible from options or tiles. Keep JSON compact enough to finish ALL entries; prefer fewer strong exercises and precise explanations over excessive volume. Use standard JSON escaping only. No trailing commas, no Markdown fences, no incomplete entries.
-""".trimIndent()
-}
-@Composable private fun StudyshApp(read:()->String,save:(String)->Unit,readProgress:()->String,saveProgress:(String)->Unit,readLanguage:()->String,saveLanguage:(String)->Unit,readAppLanguage:()->String,saveAppLanguage:(String)->Unit){
+@Composable internal fun StudyshApp(read:()->String,save:(String)->Unit,readProgress:()->String,saveProgress:(String)->Unit,readLanguage:()->String,saveLanguage:(String)->Unit,readAppLanguage:()->String,saveAppLanguage:(String)->Unit){
  var library by remember { mutableStateOf(read()) }
  var entries by remember { mutableStateOf(runCatching { parseEntries(library) }.getOrDefault(emptyList())) }
  var page by remember { mutableStateOf(1) }
+ var settingsWindow by remember { mutableStateOf<SettingsWindow?>(null) }
  var filter by remember { mutableStateOf("All") }
  var studyLanguage by remember { mutableStateOf(readLanguage().takeIf{it in listOf("English","Japanese","Spanish","Portuguese")} ?: "English") }
+ var practiceLanguage by remember { mutableStateOf(studyLanguage) }
  var appLanguage by remember { mutableStateOf(readAppLanguage().takeIf{it in listOf("en","pt","es","ja")} ?: "en") }
  StudyshI18n.language=appLanguage
  var compact by remember { mutableStateOf(true) }
@@ -220,8 +132,11 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
  var advancedEdit by remember { mutableStateOf(false) }
  val clipboard=LocalClipboardManager.current
  val context=androidx.compose.ui.platform.LocalContext.current
+ val uiPrefs=remember(context){context.getSharedPreferences("studysh_ui",android.content.Context.MODE_PRIVATE)}
+ var furiganaEnabled by rememberSaveable { mutableStateOf(uiPrefs.getBoolean("furigana",false)) }
+ val sounds=remember(context){StudyshSounds(context.applicationContext)}
  val piper=remember(context){StudyshPiper(context)}
- DisposableEffect(piper){onDispose{piper.close()}}
+ DisposableEffect(piper,sounds){onDispose{piper.close();sounds.close()}}
  val backupExporter=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")){uri->
   uri?.let{
    runCatching{
@@ -256,74 +171,34 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    if(root.optJSONArray("entries")==null) throw IllegalArgumentException("Missing entries array.")
    val incoming=parseEntries(root.toString())
    if(incoming.isEmpty()) throw IllegalArgumentException("No terms found in JSON.")
-   val map=linkedMapOf<String,JSONObject>()
-   entries.forEach { map[it.term.lowercase()]=JSONObject(it.original) }
-   incoming.forEach { item ->
-    val key=item.term.lowercase()
-    val old=map[key]
-    val replacement=JSONObject(item.original)
-    if(old!=null){
-     val personal=old.optJSONArray("personalNotes")
-     if(personal!=null)replacement.put("personalNotes",personal)
-     val oldNotes=old.optJSONArray("notes")
-     if(oldNotes!=null){
-      val saved=JSONArray()
-      for(j in 0 until oldNotes.length()){
-       val n=oldNotes.optJSONObject(j)?:continue
-       if(n.optString("type")=="custom")saved.put(n)
-      }
-      if(saved.length()>0){
-       val existing=replacement.optJSONArray("personalNotes")?:JSONArray()
-       for(j in 0 until saved.length())existing.put(saved.getJSONObject(j))
-       replacement.put("personalNotes",existing)
-      }
-     }
-    }
-    map[key]=replacement
-   }
-   val arr=JSONArray();map.values.forEach { arr.put(it) }
+   val arr=JSONArray()
+   StudyLibrary.merge(entries,incoming).forEach{arr.put(it)}
    library=JSONObject().put("schemaVersion","3.0").put("entries",arr).toString()
    save(library);entries=parseEntries(library);error=if(partial) "Recovered ${incoming.size} complete term(s). The response was cut off; remaining terms were not imported." else "Imported ${incoming.size} term(s).";showPaste=false;page=3
   }catch(e:Exception){error="Import failed: "+(e.message?:"Invalid JSON").take(180)}
  }
  MaterialTheme(colorScheme=lightColorScheme(primary=Ink,background=Canvas,surface=Color.White,onSurface=Ink)){
+  val readingSettings=FuriganaSettings(furiganaEnabled,
+   StudyLanguage.canonical(selected?.language ?: if(page==2)practiceLanguage else studyLanguage)=="Japanese",
+   selected?.let{runCatching{JapaneseReadings.overridesFrom(JSONObject(it.original))}.getOrDefault(emptyMap())}.orEmpty())
+  CompositionLocalProvider(LocalFurigana provides readingSettings){
   Column(Modifier.fillMaxSize().background(Canvas)){
-   if(page!=4)Row(Modifier.fillMaxWidth().padding(horizontal=22.dp, vertical=18.dp),verticalAlignment=Alignment.CenterVertically){
-    Icon(Icons.Outlined.Layers,null,tint=Color(0xFF8C60CB),modifier=Modifier.size(28.dp))
-    Spacer(Modifier.width(10.dp))
-    Text("Studysh",fontSize=27.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
-    IconButton(onClick={backupExporter.launch("studysh-backup.json")}){Icon(Icons.Outlined.SaveAlt,"Export backup")}
-    IconButton(onClick={picker.launch("*/*")}){Icon(Icons.Outlined.FileUpload,"Import JSON or backup")}
-   }
-   if(page==6){
-    Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(14.dp)){
-     Row(verticalAlignment=Alignment.CenterVertically){IconButton(onClick={page=1}){Icon(Icons.Outlined.ArrowBack,"Back")};Text(ui("Settings"),fontSize=26.sp,fontWeight=FontWeight.Bold)}
-     Text(ui("App language"),fontSize=19.sp,fontWeight=FontWeight.SemiBold)
-     listOf("en" to "English","pt" to "Português","es" to "Español","ja" to "日本語").forEach{(code,label)->
-      Surface(onClick={appLanguage=code;StudyshI18n.language=code;saveAppLanguage(code)},shape=RoundedCornerShape(16.dp),color=if(appLanguage==code)Color(0xFFF1EAFB) else Color.White,border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE4DEEB))){
-       Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
-        Text(label,modifier=Modifier.weight(1f));if(appLanguage==code)Icon(Icons.Outlined.CheckCircle,"Selected",tint=Color(0xFF956DCE))
-       }
-      }
+   Row(Modifier.fillMaxWidth().padding(horizontal=12.dp, vertical=8.dp),verticalAlignment=Alignment.CenterVertically){
+    Icon(Icons.Outlined.Layers,null,tint=Color(0xFF8C60CB),modifier=Modifier.size(24.dp))
+    Spacer(Modifier.width(8.dp))
+    Text("Studysh",fontSize=24.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f),maxLines=1)
+    IconButton(onClick={picker.launch("*/*")},modifier=Modifier.testTag("import-json")){Icon(Icons.Outlined.SaveAlt,"Import JSON or backup")}
+    IconButton(onClick={backupExporter.launch("studysh-backup.json")},modifier=Modifier.testTag("export-backup")){Icon(Icons.Outlined.FileUpload,"Export backup")}
+    if(StudyLanguage.showFurigana(studyLanguage,selected?.language,if(page==2 && selected==null)practiceLanguage else null)){
+     IconToggleButton(checked=furiganaEnabled,onCheckedChange={value->furiganaEnabled=value;uiPrefs.edit().putBoolean("furigana",value).apply();sounds.play(SoundCue.Tap)},
+      modifier=Modifier.testTag("furigana-toggle").semantics{contentDescription="Furigana";stateDescription=if(furiganaEnabled)"On" else "Off"}){
+      Column(horizontalAlignment=Alignment.CenterHorizontally){Text("ふ",fontSize=9.sp,lineHeight=9.sp);Text("漢",fontSize=19.sp,lineHeight=21.sp,color=if(furiganaEnabled)Color(0xFF956DCE) else Muted)}
      }
-     HorizontalDivider()
-     Text(ui("Language to study"),fontSize=19.sp,fontWeight=FontWeight.SemiBold)
-     Text(ui("Choose the language used by new study prompts. Existing lessons remain unchanged."),color=Muted,fontSize=14.sp)
-     listOf("English","Spanish","Japanese","Portuguese").forEach{language->
-      Surface(onClick={studyLanguage=language;saveLanguage(language)},shape=RoundedCornerShape(16.dp),color=if(studyLanguage==language)Color(0xFFF1EAFB) else Color.White,border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFE4DEEB))){
-       Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
-        Text(ui(language),modifier=Modifier.weight(1f),fontWeight=if(studyLanguage==language)FontWeight.Bold else FontWeight.Normal)
-        if(studyLanguage==language)Icon(Icons.Outlined.CheckCircle,"Selected",tint=Color(0xFF956DCE))
-       }
-      }
-     }
-     Text(ui("Lessons layout"),fontSize=19.sp,fontWeight=FontWeight.SemiBold)
-     Row(verticalAlignment=Alignment.CenterVertically){Text(ui("Compact layout"),modifier=Modifier.weight(1f));Switch(checked=compact,onCheckedChange={compact=it})}
-     OutlinedButton(onClick={page=5},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.RecordVoiceOver,null);Text(" "+ui("Voice settings"))}
     }
-   }else if(page==5){
-    PiperVoiceSettings(piper,onBack={page=3})
-   }else if(page==4){
+    IconButton(onClick={settingsWindow=SettingsWindow.Settings},modifier=Modifier.testTag("global-settings")){Icon(Icons.Outlined.Tune,"Settings")}
+   }
+   Box(Modifier.weight(1f)){
+   if(page==4){
     BookCapture(maxStudies=(5-fields.count{it.term.isNotBlank()}).coerceAtLeast(0),onClose={page=0},onAdd={captured->
      fields=fields.filter{it.term.isNotBlank()}+captured
      page=0
@@ -331,16 +206,20 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     })
    }else if(selected!=null){
     val item=selected!!
+    Column(Modifier.fillMaxSize()){
     Row(Modifier.padding(horizontal=16.dp),verticalAlignment=Alignment.CenterVertically){
      IconButton(onClick={selected=null}){Icon(Icons.Outlined.ArrowBack,"Back")}
      Text(ui("Lessons"),color=Muted)
     }
-    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+    LazyColumn(Modifier.weight(1f),contentPadding=PaddingValues(horizontal=18.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
      item {
       Row(verticalAlignment=Alignment.CenterVertically){
-       Column(Modifier.weight(1f)){Text(item.term,fontSize=30.sp,fontWeight=FontWeight.Bold);if(item.pronunciation.isNotBlank() || item.partOfSpeech.isNotBlank())Text(listOf(item.pronunciation,item.partOfSpeech).filter{it.isNotBlank()}.joinToString(" · "),color=Muted,fontSize=15.sp)}
+       Column(Modifier.weight(1f)){
+        StudyText(item.term,fontSize=30.sp,fontWeight=FontWeight.Bold)
+        val pronunciation=if(SpeechRouting.isJapanese(item.language) && furiganaEnabled) "" else item.pronunciation
+        if(pronunciation.isNotBlank() || item.partOfSpeech.isNotBlank())Text(listOf(pronunciation,item.partOfSpeech).filter{it.isNotBlank()}.joinToString(" · "),color=Muted,fontSize=15.sp)
+       }
        IconButton(onClick={piper.speak(item.term,item.language)}){Icon(Icons.Outlined.VolumeUp,"Speak term")}
-       IconButton(onClick={page=5}){Icon(Icons.Outlined.RecordVoiceOver,"Voice settings")}
        IconButton(onClick={entryDraft=JSONObject(item.original).toString(2);editorError="";advancedEdit=false;editEntry=true}){Icon(Icons.Outlined.Edit,"Edit term")}
        IconButton(onClick={deleteEntry=true}){Icon(Icons.Outlined.DeleteOutline,"Delete term",tint=Color(0xFFAE5A68))}
       }
@@ -358,7 +237,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
       Surface(color=Color(0xFFF1ECF8),shape=RoundedCornerShape(14.dp)){
        Row(Modifier.fillMaxWidth().padding(horizontal=14.dp,vertical=11.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(9.dp)){
         Icon(Icons.Outlined.TravelExplore,null,modifier=Modifier.size(18.dp),tint=Color(0xFF785C9E))
-        Column{Text("Original context",fontWeight=FontWeight.SemiBold,fontSize=12.sp,color=Color(0xFF785C9E));Text(studyContext,fontSize=14.sp,lineHeight=20.sp)}
+        Column{Text("Original context",fontWeight=FontWeight.SemiBold,fontSize=12.sp,color=Color(0xFF785C9E));StudyText(studyContext,fontSize=14.sp,lineHeight=20.sp)}
        }
       }
      }
@@ -390,16 +269,17 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
          arr.put(JSONObject().put("text",customNote))
          obj.put("personalNotes",arr)
          val all=JSONObject(library);val data=all.getJSONArray("entries")
-         for(i in 0 until data.length()){if(data.getJSONObject(i).optString("term")==item.term){data.put(i,obj);break}}
-         library=all.toString();save(library);entries=parseEntries(library);selected=entries.find{it.term==item.term};customNote=""
+         for(i in 0 until data.length()){if(StudyLanguage.lessonKey(data.getJSONObject(i))==item.id){data.put(i,obj);break}}
+         library=all.toString();save(library);entries=parseEntries(library);selected=entries.find{it.id==item.id};customNote=""
         }
        }){Text(ui("Save note"))}
       }
      }
     }
+    }
    }else{
     when(page){
-     0->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
+     0->LazyColumn(modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)){
       item{Text(ui("New search"),fontSize=27.sp,fontWeight=FontWeight.Bold);Text("Begin with your context, then explore natural usage elsewhere.",color=Muted,fontSize=14.sp,lineHeight=21.sp)}
       items(fields.size){i->
        val query=fields[i]
@@ -420,17 +300,16 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        OutlinedButton(onClick={page=4},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.PhotoCamera,null);Text(" "+ui("Capture from book"))}
        Spacer(Modifier.height(8.dp))
        Spacer(Modifier.height(16.dp))
-       Button(onClick={clipboard.setText(AnnotatedString(prompt(fields.filter{it.term.isNotBlank()},studyLanguage)));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" "+ui("Copy study prompt"))}
+       Button(onClick={clipboard.setText(AnnotatedString(studyPrompt(fields.filter{it.term.isNotBlank()},studyLanguage)));error="Prompt copied to clipboard."},enabled=fields.any{it.term.isNotBlank()},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.ContentCopy,null);Text(" "+ui("Copy study prompt"))}
        Spacer(Modifier.height(8.dp))
        OutlinedButton(onClick={importSource="paste";jsonText="";showPaste=true},modifier=Modifier.fillMaxWidth()){Icon(Icons.Outlined.DataObject,null);Text(" "+ui("Import AI response"))}
       }
      }
-     2->Box(Modifier.weight(1f)){StudyshPractice(library,readProgress,saveProgress)}
-     1->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
+     2->key(practiceLanguage){StudyshPractice(library,readProgress,saveProgress,practiceLanguage,{practiceLanguage=it},sounds)}
+     1->LazyColumn(modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(16.dp)){
       item{
        Row(verticalAlignment=Alignment.CenterVertically){
         Text(ui("Welcome to Studysh"),fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))
-        IconButton(onClick={page=6}){Icon(Icons.Outlined.Tune,"Settings")}
        }
        Text("Understand words deeply. Remember them naturally.",fontSize=14.sp,color=Muted)
       }
@@ -471,7 +350,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
          border=androidx.compose.foundation.BorderStroke(1.dp,Color(0xFFEAE5EE))){
          Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
           Column(Modifier.weight(1f)){
-           Text(entry.term,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
+           StudyText(entry.term,fontSize=17.sp,fontWeight=FontWeight.SemiBold)
            Text(entry.pronunciation,fontSize=12.sp,color=Muted)
           }
           Icon(Icons.Outlined.ChevronRight,null,tint=Muted)
@@ -481,7 +360,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        }
       }
      }
-     else->LazyColumn(modifier=Modifier.weight(1f),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
+     else->LazyColumn(modifier=Modifier.fillMaxSize(),contentPadding=PaddingValues(horizontal=20.dp,vertical=12.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
       item{
        Row(verticalAlignment=Alignment.CenterVertically){Text(ui("Lessons"),fontSize=28.sp,fontWeight=FontWeight.Bold,modifier=Modifier.weight(1f))}
        Spacer(Modifier.height(10.dp))
@@ -513,22 +392,32 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        Row(Modifier.fillMaxWidth().background(Pastels[i%Pastels.size],RoundedCornerShape(22.dp)).clickable{selected=entry}.padding(if(compact)14.dp else 23.dp),verticalAlignment=Alignment.CenterVertically){
         Icon(Icons.Outlined.BookmarkBorder,null,modifier=Modifier.size(25.dp))
         Spacer(Modifier.width(16.dp))
-        Column(Modifier.weight(1f)){Text(entry.term,fontSize=if(compact)19.sp else 23.sp,fontWeight=FontWeight.Bold);Text(entry.pronunciation.ifBlank{"${entry.notes.size} explanation sections"},fontSize=13.sp,color=Muted,maxLines=1)}
+        Column(Modifier.weight(1f)){StudyText(entry.term,fontSize=if(compact)19.sp else 23.sp,fontWeight=FontWeight.Bold);Text(entry.pronunciation.ifBlank{"${entry.notes.size} explanation sections"},fontSize=13.sp,color=Muted,maxLines=1)}
         Surface(color=Color.White.copy(alpha=.65f),shape=RoundedCornerShape(50)){Text(when(entry.language.lowercase()){"japanese"->"JA";"spanish"->"ES";"portuguese"->"PT";else->"EN"},Modifier.padding(horizontal=9.dp,vertical=5.dp),fontSize=11.sp,color=Muted)}
        }
       }
       if(visible.isEmpty())item{Text(if(entries.isEmpty())"Your library is empty. Add your first study term." else "No matching terms.",color=Muted,modifier=Modifier.padding(top=16.dp))}
      }
     }
-    NavigationBar(containerColor=Color(0xFFFAF7FD),tonalElevation=0.dp){
-     NavigationBarItem(selected=page==1,onClick={page=1},icon={Icon(Icons.Outlined.Home,null)},label={Text(ui("Home"))})
-     NavigationBarItem(selected=page==0,onClick={page=0},icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text(ui("Create"))})
-     NavigationBarItem(selected=page==3,onClick={page=3},icon={Icon(Icons.Outlined.MenuBook,null)},label={Text(ui("Lessons"))})
-     NavigationBarItem(selected=page==2,onClick={page=2},icon={Icon(Icons.Outlined.Extension,null)},label={Text(ui("Practice"))})
-     NavigationBarItem(selected=page==5,onClick={page=5},icon={Icon(Icons.Outlined.RecordVoiceOver,null)},label={Text(ui("Voice"))})
-    }
+   }
+   }
+   NavigationBar(containerColor=Color(0xFFFAF7FD),tonalElevation=0.dp){
+    NavigationBarItem(selected=page==1 && selected==null,onClick={selected=null;page=1;piper.stop()},modifier=Modifier.testTag("nav-home"),icon={Icon(Icons.Outlined.Home,null)},label={Text(ui("Home"))})
+    NavigationBarItem(selected=page==0 && selected==null,onClick={selected=null;page=0;piper.stop()},modifier=Modifier.testTag("nav-create"),icon={Icon(Icons.Outlined.AddCircleOutline,null)},label={Text(ui("Create"))})
+    NavigationBarItem(selected=page==3 || selected!=null,onClick={selected=null;page=3;piper.stop()},modifier=Modifier.testTag("nav-lessons"),icon={Icon(Icons.Outlined.MenuBook,null)},label={Text(ui("Lessons"))})
+    NavigationBarItem(selected=page==2 && selected==null,onClick={selected=null;page=2;piper.stop()},modifier=Modifier.testTag("nav-practice"),icon={Icon(Icons.Outlined.Extension,null)},label={Text(ui("Practice"))})
    }
    if(error.isNotBlank())Text(error,modifier=Modifier.padding(horizontal=20.dp, vertical=5.dp),color=Muted,fontSize=12.sp,maxLines=4,overflow=TextOverflow.Ellipsis)
+  }
+  when(settingsWindow){
+   SettingsWindow.Settings->StudyshSettings(appLanguage,studyLanguage,compact,sounds,
+    onAppLanguage={appLanguage=it;StudyshI18n.language=it;saveAppLanguage(it)},
+    onStudyLanguage={studyLanguage=it;practiceLanguage=it;saveLanguage(it)},onCompact={compact=it},
+    onVoices={settingsWindow=SettingsWindow.Voices},onClose={settingsWindow=null})
+   SettingsWindow.Voices->StudyshWindow(onDismiss={settingsWindow=SettingsWindow.Settings}){
+    PiperVoiceSettings(piper,onBack={settingsWindow=SettingsWindow.Settings})
+   }
+   null->Unit
   }
   pendingExample?.let{(term,sentence)->
    AlertDialog(
@@ -556,13 +445,15 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    title={Text("Delete this term?")},
    text={Text("Remove \"${selected?.term}\" and its lesson from the library? This cannot be undone. Its practice history will also be removed. Export a backup first if you want to keep it.")},
    confirmButton={TextButton(onClick={
-    val term=selected!!.term
+    val removed=selected!!
+    val term=removed.term
+    val uniqueLegacy=entries.none{it.id!=removed.id && it.term.equals(term,true)}
     val arr=JSONArray()
-    entries.filterNot{it.term==term}.forEach{arr.put(JSONObject(it.original))}
+    entries.filterNot{it.id==removed.id}.forEach{arr.put(JSONObject(it.original))}
     library=JSONObject().put("schemaVersion","3.0").put("entries",arr).toString()
     save(library);entries=parseEntries(library)
     val history=runCatching{JSONObject(readProgress())}.getOrElse{JSONObject()}
-    val keys=history.keys().asSequence().filter{it.startsWith(term.lowercase()+":")}.toList()
+    val keys=history.keys().asSequence().filter{it.startsWith(StudyLanguage.progressPrefix(removed.language,term)) || (uniqueLegacy && it.startsWith(term.lowercase()+":"))}.toList()
     keys.forEach{history.remove(it)};saveProgress(history.toString())
     selected=null;deleteEntry=false
    }){Text(ui("Delete"),color=Color(0xFFAE5A68))}},
@@ -595,19 +486,26 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      val old=selected!!
      val term=edited.optString("term").trim()
      require(term.isNotBlank()){"Term cannot be empty."}
-     require(entries.none{it.term.equals(term,true) && !it.term.equals(old.term,true)}){"Another term already has this name."}
+     val editedLanguage=StudyLanguage.canonical(edited.optString("language",old.language))
+     edited.put("language",editedLanguage)
+     val editedId=StudyLanguage.lessonKey(editedLanguage,term)
+     val uniqueLegacy=entries.none{it.id!=old.id && it.term.equals(old.term,true)}
+     require(entries.none{it.id==editedId && it.id!=old.id}){"Another lesson in this language already has this name."}
      require(edited.optJSONArray("blocks")!=null || edited.optJSONArray("notes")!=null){"The lesson needs blocks or notes."}
      val updated=JSONArray()
-     entries.forEach{entry->updated.put(if(entry.term==old.term)edited else JSONObject(entry.original))}
+     entries.forEach{entry->updated.put(if(entry.id==old.id)edited else JSONObject(entry.original))}
      library=JSONObject().put("schemaVersion","3.0").put("entries",updated).toString()
      save(library);entries=parseEntries(library)
-     if(!term.equals(old.term,true)){
+     if(editedId!=old.id){
       val history=runCatching{JSONObject(readProgress())}.getOrElse{JSONObject()}
-      val keys=history.keys().asSequence().filter{it.startsWith(old.term.lowercase()+":")}.toList()
-      keys.forEach{key->val value=history.optJSONObject(key);if(value!=null){history.put(term.lowercase()+key.substring(old.term.length),value);history.remove(key)}}
+      val oldPrefix=StudyLanguage.progressPrefix(old.language,old.term)
+      val legacyPrefix=old.term.lowercase()+":"
+      val newPrefix=StudyLanguage.progressPrefix(editedLanguage,term)
+      val keys=history.keys().asSequence().filter{it.startsWith(oldPrefix) || (uniqueLegacy && it.startsWith(legacyPrefix))}.toList()
+      keys.forEach{key->val value=history.optJSONObject(key);if(value!=null){val suffix=key.removePrefix(if(key.startsWith(oldPrefix))oldPrefix else legacyPrefix);history.put(newPrefix+suffix,value);history.remove(key)}}
       saveProgress(history.toString())
      }
-     selected=entries.find{it.term==term};editEntry=false
+     selected=entries.find{it.id==editedId};editEntry=false
     }catch(e:Exception){editorError=e.message?:"Invalid JSON"}
    }){Text("Save")}},
    dismissButton={TextButton(onClick={editEntry=false}){Text(ui("Cancel"))}}
@@ -623,7 +521,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     val data=all.getJSONArray("entries")
     for(i in 0 until data.length()){
      val obj=data.getJSONObject(i)
-     if(obj.optString("term")==item.term){
+     if(StudyLanguage.lessonKey(obj)==item.id){
       val notes=obj.optJSONArray("personalNotes")?:JSONArray()
       if(index in 0 until notes.length()){
        val old=notes.optJSONObject(index)?:JSONObject()
@@ -636,7 +534,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      }
     }
     library=all.toString();save(library);entries=parseEntries(library)
-    selected=entries.find{it.term==item.term};editingPersonalNote=null
+    selected=entries.find{it.id==item.id};editingPersonalNote=null
    },enabled=personalNoteDraft.isNotBlank()){Text(ui("Save changes"))}},
    dismissButton={TextButton(onClick={editingPersonalNote=null}){Text(ui("Cancel"))}}
   )
@@ -651,7 +549,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
     val data=all.getJSONArray("entries")
     for(i in 0 until data.length()){
      val obj=data.getJSONObject(i)
-     if(obj.optString("term")==item.term){
+     if(StudyLanguage.lessonKey(obj)==item.id){
       val notes=obj.optJSONArray("personalNotes")?:JSONArray()
       val remaining=JSONArray()
       for(j in 0 until notes.length())if(j!=index)remaining.put(notes.get(j))
@@ -661,7 +559,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
      }
     }
     library=all.toString();save(library);entries=parseEntries(library)
-    selected=entries.find{it.term==item.term};deletePersonalNote=null
+    selected=entries.find{it.id==item.id};deletePersonalNote=null
    }){Text(ui("Delete"))}},
    dismissButton={TextButton(onClick={deletePersonalNote=null}){Text(ui("Cancel"))}}
   )
@@ -682,6 +580,7 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
    }
   },confirmButton={TextButton(onClick={merge(jsonText)},enabled=jsonText.isNotBlank()){Text("Import")}},dismissButton={TextButton(onClick={showPaste=false}){Text(ui("Cancel"))}})
 
+ }
  }
 }
 
@@ -726,7 +625,7 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
  Column(Modifier.fillMaxWidth().background(tone,RoundedCornerShape(20.dp)).padding(17.dp),verticalArrangement=Arrangement.spacedBy(11.dp)){
   Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)){
    Icon(icon,null,tint=Color(0xFF62646A),modifier=Modifier.size(19.dp))
-   Text(note.title,fontSize=17.sp,fontWeight=FontWeight.Bold,lineHeight=23.sp)
+   StudyText(note.title,fontSize=17.sp,fontWeight=FontWeight.Bold,lineHeight=23.sp)
   }
   if(note.content.isNotBlank()){
    val paragraphs=readableText(note.content).trim().split(Regex("""\n\s*\n"""))
@@ -738,11 +637,11 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
        lines.forEach{line->
         Row(horizontalArrangement=Arrangement.spacedBy(9.dp),verticalAlignment=Alignment.Top){
          Text("•",fontSize=16.sp,color=Color(0xFF7D6E90))
-         Text(markdown(line.trimStart().drop(2)),fontSize=15.sp,lineHeight=23.sp,color=Ink,modifier=Modifier.weight(1f))
+         StudyText(markdown(line.trimStart().drop(2)),fontSize=15.sp,lineHeight=23.sp,color=Ink,modifier=Modifier.weight(1f))
         }
        }
       }
-     }else Text(markdown(paragraph),fontSize=15.sp,lineHeight=24.sp,color=Ink)
+     }else StudyText(markdown(paragraph),fontSize=15.sp,lineHeight=24.sp,color=Ink)
     }
    }
   }
@@ -753,13 +652,17 @@ private fun markdown(raw:String):AnnotatedString = buildAnnotatedString {
      SelectableExampleSentence(readableText(example.first),Modifier.weight(1f),onStudy)
      IconButton(onClick={onSpeak(readableText(example.first))}){Icon(Icons.Outlined.VolumeUp,"Speak example")}
     }
-    if(example.second.isNotBlank())Text(readableText(example.second),fontSize=14.sp,lineHeight=21.sp,color=Muted)
+    if(example.second.isNotBlank())StudyText(readableText(example.second),fontSize=14.sp,lineHeight=21.sp,color=Muted)
    }
   }
  }
 }
 
 @Composable private fun SelectableExampleSentence(sentence:String,modifier:Modifier=Modifier,onStudy:(String,String)->Unit){
+ if(LocalFurigana.current.enabled && LocalFurigana.current.japanese && JapaneseReadings.hasKanji(sentence)){
+  StudyText(sentence,modifier,fontSize=16.sp,fontStyle=FontStyle.Italic,lineHeight=24.sp,selectable=true,onStudy=onStudy)
+  return
+ }
  var value by remember(sentence){mutableStateOf(TextFieldValue(sentence))}
  val selection=value.selection
  val selectedTerm=if(!selection.collapsed && selection.start>=0 && selection.end<=sentence.length)

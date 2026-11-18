@@ -17,3 +17,10 @@ ONNX Runtime is provided by Microsoft under the MIT license. Piper uses the
 [piper-tts-apps/piper-kotlin](https://github.com/piper-tts-apps/piper-kotlin)
 Android integration and its upstream Piper, eSpeak NG and Sonic dependencies.
 Their respective license notices remain applicable.
+
+## Offline Japanese readings
+
+Kuromoji 0.9.0 (`kuromoji-core` and `kuromoji-ipadic`) is bundled for local
+morphological analysis and kana readings. The Java implementation is distributed
+under the Apache License 2.0; IPADIC dictionary data retains its upstream notices.
+Sources and notices: https://github.com/atilika/kuromoji/tree/0.9.0.

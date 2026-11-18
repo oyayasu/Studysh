@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.*
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Brush
@@ -32,43 +33,18 @@ private val Pale=Color(0xFFF1EAFB)
 private val Dark=Color(0xFF23202A)
 private val Soft=Color(0xFF797480)
 
-private data class PracticeQuestion(val key:String,val term:String,val type:String,val instruction:String,
- val sentence:String,val prompt:String,val choices:List<String>,val answer:String,val explanation:String,val skill:String)
-
-private fun JSONArray.asStrings():List<String> = (0 until length()).map{optString(it)}
-private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
- val root=runCatching{JSONObject(raw)}.getOrNull()?:return emptyList()
- val entries=root.optJSONArray("entries")?:return emptyList()
- val questions=mutableListOf<PracticeQuestion>()
- for(i in 0 until entries.length()){
-  val entry=entries.optJSONObject(i)?:continue
-  val term=entry.optString("term")
-  val arr=entry.optJSONArray("exercises")?:continue
-  for(j in 0 until arr.length()){
-   val ex=arr.optJSONObject(j)?:continue
-   val type=ex.optString("type")
-   if(type !in listOf("complete","build","choice"))continue
-   val options=(if(type=="build")ex.optJSONArray("tiles") else ex.optJSONArray("options"))?.asStrings().orEmpty()
-   val answer=ex.optString("answer")
-   if(options.isEmpty() || answer.isBlank())continue
-   if(type!="build" && answer !in options)continue
-   questions.add(PracticeQuestion(
-    key=term.lowercase()+":"+ex.optString("skillId").ifBlank{ex.optString("id","question-$j")},term=term,type=type,
-    instruction=ex.optString("instruction",if(type=="build")"Build the sentence" else "Complete the sentence"),
-    sentence=ex.optString("sentence"),prompt=ex.optString("ptPrompt"),
-    choices=options,answer=answer,explanation=ex.optString("explanation"),skill=ex.optString("skillId")
-   ))
-  }
- }
- return questions
-}
-
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun StudyshPractice(library:String,readProgress:()->String,saveProgress:(String)->Unit) {
- val questions=remember(library){questionsFromLibrary(library)}
+@Composable fun StudyshPractice(library:String,readProgress:()->String,saveProgress:(String)->Unit,
+ language:String,onLanguageChange:(String)->Unit,sounds:StudyshSounds) {
+ val allQuestions=remember(library){PracticeData.questions(library)}
+ val questions=remember(allQuestions,language){allQuestions.filter{it.language==StudyLanguage.canonical(language)}}
  val now=System.currentTimeMillis()
  var progressRaw by remember { mutableStateOf(readProgress()) }
- val progress=remember(progressRaw){runCatching{JSONObject(progressRaw)}.getOrElse{JSONObject()}}
+ val progress=remember(progressRaw,library){PracticeData.migrateProgress(progressRaw,library,allQuestions)}
+ LaunchedEffect(progressRaw,library){
+  val migrated=progress.toString()
+  if(migrated!=progressRaw){progressRaw=migrated;saveProgress(migrated)}
+ }
  val due=questions.groupBy{it.key}.values.mapNotNull{group->
   val card=progress.optJSONObject(group.first().key)
   if(StudyFsrs.dueAt(card)>now)null
@@ -87,7 +63,7 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
  var suggestedRating by remember { mutableIntStateOf(3) }
  var chosenRating by remember { mutableIntStateOf(3) }
  var exerciseStartedAt by remember { mutableLongStateOf(System.currentTimeMillis()) }
- val session=remember(active,library){if(active)due.take(20) else emptyList()}
+ val session=remember(active,library,language){if(active)due.take(20) else emptyList()}
  val current=session.getOrNull(cursor)
  fun resetAnswer(){choice="";tiles=emptyList();checked=false;exerciseStartedAt=System.currentTimeMillis()}
  fun record(correct:Boolean,q:PracticeQuestion,rating:Int){
@@ -99,13 +75,23 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
   reviewed++
   if(correct)correctCount++
  }
+ CompositionLocalProvider(LocalFurigana provides LocalFurigana.current.copy(
+  japanese=StudyLanguage.canonical(language)=="Japanese",overrides=current?.readings.orEmpty())){
  Column(Modifier.fillMaxSize().background(Color(0xFFFCFBFE))) {
   if(!active){
    LazyColumn(Modifier.fillMaxSize(),contentPadding=PaddingValues(22.dp),verticalArrangement=Arrangement.spacedBy(18.dp)){
     item {
      Text(ui("Practice"),fontSize=30.sp,fontWeight=FontWeight.Bold,color=Dark)
      Spacer(Modifier.height(5.dp))
-     Text("Build confidence with the words you've studied.",color=Soft,fontSize=14.sp)
+     Text("${ui(language)} · Review this language on its own.",color=Soft,fontSize=14.sp)
+     Spacer(Modifier.height(10.dp))
+     FlowRow(horizontalArrangement=Arrangement.spacedBy(7.dp),verticalArrangement=Arrangement.spacedBy(4.dp)){
+      (StudyLanguage.supported+allQuestions.map{it.language}).distinct().forEach{option->
+       FilterChip(selected=language==option,onClick={sounds.play(SoundCue.Tap);onLanguageChange(option)},
+        modifier=Modifier.testTag("practice-language-${StudyLanguage.id(option)}"),
+        label={Text(ui(option))})
+      }
+     }
     }
     item {
      Surface(color=Pale,shape=RoundedCornerShape(26.dp)){
@@ -126,13 +112,13 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
      }
     }
     item {
-     Button(onClick={cursor=0;reviewed=0;correctCount=0;resetAnswer();active=true},
+     Button(onClick={sounds.play(SoundCue.Start);cursor=0;reviewed=0;correctCount=0;resetAnswer();active=true},
       enabled=due.isNotEmpty(),modifier=Modifier.fillMaxWidth().height(54.dp),
       shape=RoundedCornerShape(17.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){
       Text(if(due.isEmpty())"You're all caught up" else "Start practice",fontWeight=FontWeight.Bold)
      }
      Spacer(Modifier.height(8.dp))
-     Text(if(questions.isEmpty())"Import a Studysh v3 lesson with exercises to start practicing."
+     Text(if(questions.isEmpty())"Import a ${ui(language)} lesson with exercises to start practicing."
       else if(due.isEmpty())"Your next reviews will appear here when they're due."
       else "FSRS-6 schedules reviews based on how well you remember.",fontSize=13.sp,color=Soft)
     }
@@ -150,59 +136,60 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
      Text("Your practice terms",fontWeight=FontWeight.Bold,fontSize=18.sp)
      Spacer(Modifier.height(9.dp))
      questions.map{it.term}.distinct().forEach{term->
-      Text("•  $term",modifier=Modifier.padding(vertical=5.dp),color=Dark)
+      StudyText("•  $term",modifier=Modifier.padding(vertical=5.dp),color=Dark)
      }
     }
    }
   } else if(current==null){
    Column(Modifier.fillMaxSize().padding(24.dp),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){
-    Icon(Icons.Outlined.CheckCircle,null,tint=Lavender,modifier=Modifier.size(58.dp))
+    StudyshMascot(Modifier.size(160.dp),MascotMood.Celebrate,reviewed)
     Text("Session complete",fontSize=26.sp,fontWeight=FontWeight.Bold)
     Text("$correctCount of $reviewed correct on the first check.",color=Soft)
-    Button(onClick={active=false},colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Back to Practice")}
+    Button(onClick={sounds.play(SoundCue.Tap);active=false},colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text("Back to Practice")}
    }
   } else {
    val q=current
-   val assembled=tiles.joinToString(" "){q.choices[it]}
+   val assembled=PracticeData.assemble(tiles.map{q.choices[it]},q.language)
    val submitted=if(q.type=="build")assembled else choice
-   val correct=submitted.trim()==q.answer.trim()
+   val correct=PracticeData.matches(submitted,q.answer,q.language)
    Column(Modifier.fillMaxSize().padding(horizontal=16.dp,vertical=8.dp),verticalArrangement=Arrangement.spacedBy(8.dp)){
     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(12.dp)){
-     IconButton(onClick={active=false}){Icon(Icons.Outlined.Close,"Leave session")}
+     IconButton(onClick={sounds.play(SoundCue.Tap);active=false}){Icon(Icons.Outlined.Close,"Leave session")}
      LinearProgressIndicator(progress={ (cursor+1).toFloat()/session.size },modifier=Modifier.weight(1f).height(8.dp),color=Lavender,trackColor=Color(0xFFEAE6EF))
      Text("${cursor+1}/${session.size}",fontSize=12.sp,color=Soft)
     }
     Box(Modifier.fillMaxWidth().weight(0.43f),contentAlignment=Alignment.Center){
      StudyshMascot(
       modifier=Modifier.fillMaxHeight(0.92f).aspectRatio(1f),
-      mood=if(!checked)MascotMood.Idle else if(correct)MascotMood.Happy else MascotMood.Sad
+      mood=if(!checked){if(choice.isNotBlank() || tiles.isNotEmpty())MascotMood.Thinking else MascotMood.Idle}else if(correct)MascotMood.Happy else MascotMood.Sad,
+      eventKey=cursor*3+if(checked)1 else 0
      )
     }
     Column(Modifier.fillMaxWidth().weight(0.57f).verticalScroll(rememberScrollState()),
      verticalArrangement=Arrangement.spacedBy(12.dp)){
-    Text(q.term.uppercase(),color=Lavender,fontSize=12.sp,fontWeight=FontWeight.Bold)
-    Text(q.instruction,fontSize=25.sp,fontWeight=FontWeight.Bold,lineHeight=31.sp,color=Dark)
-    if(q.prompt.isNotBlank())Text(q.prompt,fontSize=16.sp,lineHeight=24.sp,color=Soft)
+    StudyText(q.term.uppercase(),color=Lavender,fontSize=12.sp,fontWeight=FontWeight.Bold)
+    StudyText(q.instruction,fontSize=25.sp,fontWeight=FontWeight.Bold,lineHeight=31.sp,color=Dark)
+    if(q.prompt.isNotBlank())StudyText(q.prompt,fontSize=16.sp,lineHeight=24.sp,color=Soft)
     if(q.sentence.isNotBlank())Surface(color=Pale,shape=RoundedCornerShape(20.dp)){
-     Text(q.sentence,Modifier.fillMaxWidth().padding(18.dp),fontSize=19.sp,lineHeight=28.sp,color=Dark)
+     StudyText(q.sentence,Modifier.fillMaxWidth().padding(18.dp),fontSize=19.sp,lineHeight=28.sp,color=Dark)
     }
     if(q.type=="build"){
      Surface(color=Color.White,shape=RoundedCornerShape(18.dp),border=BorderStroke(1.dp,Color(0xFFE7E0EC))){
       Column(Modifier.fillMaxWidth().heightIn(min=90.dp).padding(12.dp)){
        if(tiles.isEmpty())Text("Tap the tiles to build your sentence.",color=Soft,fontSize=14.sp)
        else FlowRow(horizontalArrangement=Arrangement.spacedBy(7.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
-        tiles.forEach{index->PracticeTile(q.choices[index],true,!checked){tiles=tiles.filter{it!=index}}}
+        tiles.forEach{index->PracticeTile(q.choices[index],true,!checked){sounds.play(SoundCue.Tap);tiles=tiles.filter{it!=index}}}
        }
       }
      }
      FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
       q.choices.forEachIndexed{index,tile->
-       if(index !in tiles)PracticeTile(tile,false,!checked){tiles=tiles+index}
+       if(index !in tiles)PracticeTile(tile,false,!checked){sounds.play(SoundCue.Tap);tiles=tiles+index}
       }
      }
     } else {
      FlowRow(horizontalArrangement=Arrangement.spacedBy(9.dp),verticalArrangement=Arrangement.spacedBy(9.dp)){
-      q.choices.forEach{option->PracticeTile(option,choice==option,!checked){choice=option}}
+      q.choices.forEach{option->PracticeTile(option,choice==option,!checked){sounds.play(SoundCue.Tap);choice=option}}
      }
     }
     Spacer(Modifier.height(16.dp))
@@ -210,8 +197,8 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
      Surface(color=if(correct)Color(0xFFE7F5ED) else Color(0xFFFFF1E5),shape=RoundedCornerShape(18.dp)){
       Column(Modifier.fillMaxWidth().padding(16.dp),verticalArrangement=Arrangement.spacedBy(7.dp)){
        Text(if(correct)"Correct!" else "Let's review",fontWeight=FontWeight.Bold,fontSize=19.sp)
-       if(!correct)Text("Answer: ${q.answer}",fontWeight=FontWeight.SemiBold)
-       if(q.explanation.isNotBlank())Text(q.explanation,fontSize=14.sp,lineHeight=22.sp)
+       if(!correct)StudyText("Answer: ${q.answer}",fontWeight=FontWeight.SemiBold)
+       if(q.explanation.isNotBlank())StudyText(q.explanation,fontSize=14.sp,lineHeight=22.sp)
       }
      }
      Text("How well did you remember?",fontWeight=FontWeight.SemiBold,fontSize=14.sp,color=Dark)
@@ -219,21 +206,23 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
      Row(horizontalArrangement=Arrangement.spacedBy(6.dp),modifier=Modifier.fillMaxWidth()){
       listOf("Again","Hard","Good","Easy").forEachIndexed{index,label->
        val rating=index+1
-       Surface(onClick={chosenRating=rating},enabled=correct || rating==1,modifier=Modifier.weight(1f),
+       Surface(onClick={sounds.play(SoundCue.Tap);chosenRating=rating},enabled=correct || rating==1,modifier=Modifier.weight(1f),
         color=if(chosenRating==rating)Pale else if(!correct && rating!=1)Color(0xFFF3F2F4) else Color.White,
         shape=RoundedCornerShape(12.dp),border=BorderStroke(1.dp,if(chosenRating==rating)Lavender else Color(0xFFE3DFE8))){
         Text(label,modifier=Modifier.padding(vertical=12.dp),fontSize=12.sp,fontWeight=if(chosenRating==rating)FontWeight.Bold else FontWeight.Normal,color=Dark,textAlign=androidx.compose.ui.text.style.TextAlign.Center)
        }
       }
      }
-     Button(onClick={record(correct,q,chosenRating);cursor++;resetAnswer()},modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text(ui("Continue"),fontWeight=FontWeight.Bold)}
+     Button(onClick={record(correct,q,chosenRating);sounds.play(if(cursor==session.lastIndex)SoundCue.Complete else SoundCue.Continue);cursor++;resetAnswer()},modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text(ui("Continue"),fontWeight=FontWeight.Bold)}
     }else{
-     Button(onClick={suggestedRating=if(!correct)1 else if(System.currentTimeMillis()-exerciseStartedAt>45_000L)2 else 3;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text(ui("Check"),fontWeight=FontWeight.Bold)}
+     Button(onClick={sounds.play(if(correct)SoundCue.Correct else SoundCue.Retry);suggestedRating=if(!correct)1 else if(System.currentTimeMillis()-exerciseStartedAt>45_000L)2 else 3;chosenRating=suggestedRating;checked=true},enabled=if(q.type=="build")tiles.isNotEmpty() else choice.isNotBlank(),modifier=Modifier.fillMaxWidth().height(52.dp),shape=RoundedCornerShape(16.dp),colors=ButtonDefaults.buttonColors(containerColor=Lavender)){Text(ui("Check"),fontWeight=FontWeight.Bold)}
     }
     }
    }
   }
  }
+}
+
 }
 
 @Composable private fun PracticeStat(value:String,label:String,modifier:Modifier=Modifier){
@@ -247,64 +236,6 @@ private fun questionsFromLibrary(raw:String):List<PracticeQuestion> {
 @Composable private fun PracticeTile(text:String,selected:Boolean,enabled:Boolean,onClick:()->Unit){
  Surface(onClick=onClick,enabled=enabled,color=if(selected)Color(0xFFE4D6F5) else Color.White,
   shape=RoundedCornerShape(13.dp),border=BorderStroke(1.dp,if(selected)Lavender else Color(0xFFE0DEE3))){
-  Text(text,Modifier.padding(horizontal=15.dp,vertical=12.dp),fontSize=15.sp,color=Dark)
- }
-}
-
-enum class MascotMood { Idle, Happy, Sad }
-
-@Composable fun StudyshMascot(modifier:Modifier=Modifier,mood:MascotMood=MascotMood.Idle){
- val transition=rememberInfiniteTransition(label="mascot")
- val bounce by transition.animateFloat(initialValue=0f,targetValue=1f,
-  animationSpec=infiniteRepeatable(animation=tween(1900,easing=FastOutSlowInEasing),repeatMode=RepeatMode.Reverse),
-  label="bounce")
- val joy by animateFloatAsState(targetValue=if(mood==MascotMood.Happy)1f else 0f,
-  animationSpec=spring(dampingRatio=Spring.DampingRatioMediumBouncy,stiffness=Spring.StiffnessLow),label="joy")
- val sorrow by animateFloatAsState(targetValue=if(mood==MascotMood.Sad)1f else 0f,
-  animationSpec=tween(450),label="sorrow")
- val blink by transition.animateFloat(initialValue=1f,targetValue=0.07f,
-  animationSpec=infiniteRepeatable(animation=keyframes{
-   durationMillis=3900
-   1f at 0
-   1f at 3450
-   .07f at 3570
-   1f at 3700
-   1f at 3900
-  },repeatMode=RepeatMode.Restart),label="blink")
- Canvas(modifier.graphicsLayer{
-  translationY=-7f*bounce-14f*joy*bounce+5f*sorrow
-  rotationZ=joy*8f*(bounce-.5f)-sorrow*5f
-  scaleX=1f+.035f*bounce+.12f*joy*(1f-bounce)
-  scaleY=1f-.035f*bounce+.13f*joy*bounce-.07f*sorrow
- }){
-  val w=size.width;val h=size.height
-  drawOval(brush=Brush.radialGradient(listOf(Color(0xFFF8EDFF),Color(0xFFD6B4F1),Color(0xFFB18BDC)),
-   center=Offset(w*.38f,h*.24f),radius=w*.82f),
-   topLeft=Offset(w*.07f,h*.10f),size=Size(w*.86f,h*.81f))
-  drawOval(color=Color.White.copy(alpha=.36f),topLeft=Offset(w*.24f,h*.17f),size=Size(w*.38f,h*.13f))
-  // Eyes squash into cheerful arcs when correct, and droop when incorrect.
-  val eyeY=h*(.50f+.035f*sorrow)
-  val eyeHeight=h*(.07f*blink*(1f-.75f*joy)+.008f*joy)
-  listOf(.37f,.59f).forEach{x->
-   drawOval(color=Color(0xFF40314E),topLeft=Offset(w*x,eyeY-eyeHeight/2),
-    size=Size(w*.068f,eyeHeight.coerceAtLeast(1f)))
-  }
-  if(joy>.05f){
-   drawOval(color=Color(0xFFFFA9C9).copy(alpha=.48f*joy),
-    topLeft=Offset(w*.25f,h*.59f),size=Size(w*.13f,h*.07f))
-   drawOval(color=Color(0xFFFFA9C9).copy(alpha=.48f*joy),
-    topLeft=Offset(w*.65f,h*.59f),size=Size(w*.13f,h*.07f))
-  }
-  val mouthY=h*(.63f+.045f*sorrow)
-  val mouth=Path().apply{
-   moveTo(w*.45f,mouthY)
-   cubicTo(w*.47f,mouthY+h*(.11f*joy-.07f*sorrow+.05f),
-    w*.54f,mouthY+h*(.11f*joy-.07f*sorrow+.05f),w*.57f,mouthY)
-  }
-  drawPath(mouth,color=Color(0xFF59416C),style=Stroke(width=w*.024f,cap=androidx.compose.ui.graphics.StrokeCap.Round))
-  if(sorrow>.1f){
-   drawOval(color=Color(0xFF9BCBFA).copy(alpha=.85f*sorrow),
-    topLeft=Offset(w*.68f,h*(.57f+.09f*bounce)),size=Size(w*.035f,h*.09f))
-  }
+  StudyText(text,Modifier.padding(horizontal=15.dp,vertical=12.dp),fontSize=15.sp,color=Dark)
  }
 }
