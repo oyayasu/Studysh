@@ -22,12 +22,20 @@ import java.util.concurrent.Executors
 
 data class PiperVoice(val id:String,val label:String,val region:String,val bytes:Long,val sha256:String?=null){
  val base:String get()=id
- val modelUrl:String get()="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/$region/${id.substringAfter('-').substringBeforeLast('-')}/high/$base.onnx?download=true"
- val configUrl:String get()="https://huggingface.co/rhasspy/piper-voices/resolve/main/en/$region/${id.substringAfter('-').substringBeforeLast('-')}/high/$base.onnx.json?download=true"
+ private val family:String get()=region.substringBefore('_')
+ private val speaker:String get()=id.removePrefix("$region-").substringBeforeLast('-')
+ private val quality:String get()=id.substringAfterLast('-')
+ private val directory:String get()="$family/$region/$speaker/$quality"
+ val modelUrl:String get()="https://huggingface.co/rhasspy/piper-voices/resolve/main/$directory/$base.onnx?download=true"
+ val configUrl:String get()="https://huggingface.co/rhasspy/piper-voices/resolve/main/$directory/$base.onnx.json?download=true"
 }
 val PIPER_VOICES=listOf(
  PiperVoice("en_US-libritts-high","LibriTTS · High (United States)","en_US",137_000_000L),
- PiperVoice("en_GB-cori-high","Cori · High (United Kingdom)","en_GB",114_000_000L)
+ PiperVoice("en_GB-cori-high","Cori · High (United Kingdom)","en_GB",114_000_000L),
+ PiperVoice("pt_BR-jeff-medium","Jeff · Medium (Brasil)","pt_BR",63_221_984L),
+ PiperVoice("pt_PT-tugão-medium","Tugão · Medium (Portugal)","pt_PT",63_221_984L),
+ PiperVoice("es_AR-daniela-high","Daniela · High (Argentina)","es_AR",114_199_011L),
+ PiperVoice("es_ES-davefx-medium","DaveFX · Medium (España)","es_ES",63_221_984L)
 )
 class StudyshPiper(private val context:Context){
  private val preferences=context.getSharedPreferences("piper",Context.MODE_PRIVATE)
@@ -121,6 +129,17 @@ class StudyshPiper(private val context:Context){
    }finally{downloading=null;progress=0f}
   }
  }
+ fun preview(voice:PiperVoice){
+  if(!installed(voice)){message="Download this voice first.";return}
+  select(voice)
+  val sample=when(voice.region.substringBefore('_')){
+   "pt"->"Este é um exemplo de pronúncia em português."
+   "es"->"Este es un ejemplo de pronunciación en español."
+   "ja"->"これは日本語の音声サンプルです。"
+   else->"The artist uses overlapping lines to suggest depth."
+  }
+  speak(sample)
+ }
  fun speak(text:String){
   if(text.isBlank())return
   val voice=PIPER_VOICES.firstOrNull{it.id==activeVoice}?:PIPER_VOICES[0]
@@ -152,7 +171,9 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
    Text(ui("Voice settings"),style=MaterialTheme.typography.headlineSmall)
   }
   Text("Piper TTS · On-device, offline speech after downloading a voice.")
-  PIPER_VOICES.forEach{voice->
+  PIPER_VOICES.groupBy{it.region.substringBefore('_')}.forEach{(family,voices)->
+   Text(when(family){"pt"->"Português";"es"->"Español";"ja"->"日本語";else->"English"},style=MaterialTheme.typography.titleLarge)
+   voices.forEach{voice->
    val installed=piper.installed(voice)
    ElevatedCard(Modifier.fillMaxWidth()){
     Column(Modifier.padding(16.dp),verticalArrangement=Arrangement.spacedBy(10.dp)){
@@ -165,12 +186,14 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
        Button(onClick={piper.select(voice)},enabled=piper.activeVoice!=voice.id){
         Text(if(piper.activeVoice==voice.id)"Selected" else "Select")
        }
-       OutlinedButton(onClick={piper.speak("The artist uses overlapping lines to suggest depth.")}){Text(ui("Preview"))}
+       OutlinedButton(onClick={piper.preview(voice)}){Text(ui("Preview"))}
       }else Button(onClick={piper.download(voice)},enabled=piper.downloading==null){Text(ui("Download"))}
      }
     }
    }
   }
+  }
+  Text("Japanese Sarah and Lily are not in the official Piper voice catalog. They are not available for download yet.",style=MaterialTheme.typography.bodySmall)
   if(piper.message.isNotBlank())Text(piper.message,color=MaterialTheme.colorScheme.secondary)
   Text("LibriTTS High contains multiple speakers; this version uses speaker 0. Models are stored privately on your device.",style=MaterialTheme.typography.bodySmall)
  }
