@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Studysh</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <div class="shell">
+    <aside class="sidebar" aria-label="Navigation">
+      <div class="brand"><div class="brand-dot">◡</div><div><strong>Studysh</strong><small>Vocabulary workspace</small></div></div>
+      <div class="nav-section">WORKSPACE</div>
+      <nav id="navigation">
+        <button class="nav-btn active" data-view="home"><span class="nav-icon">⌂</span>Home</button>
+        <button class="nav-btn" data-view="create"><span class="nav-icon">✎</span>Create</button>
+        <button class="nav-btn" data-view="lessons"><span class="nav-icon">▤</span>Lessons <span id="lesson-count" class="nav-count">0</span></button>
+        <button class="nav-btn" data-view="practice"><span class="nav-icon">◈</span>Practice</button>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="local-indicator"><i></i> Stored locally</span>
+        <small>Studysh for Windows · 0.1.0</small>
+      </div>
+    </aside>
+
+    <div class="workspace">
+      <header class="toolbar">
+        <div class="toolbar-breadcrumb" id="breadcrumb">Home</div>
+        <div class="toolbar-actions">
+          <button class="icon-btn" id="import-btn" title="Import JSON / backup" aria-label="Import JSON or backup">↓</button>
+          <button class="icon-btn" id="export-btn" title="Export backup" aria-label="Export backup">↑</button>
+          <button class="icon-btn furigana-btn" id="furigana-btn" hidden title="Toggle furigana" aria-label="Furigana" aria-pressed="false">ふ</button>
+          <button class="icon-btn" id="settings-btn" title="Settings" aria-label="Settings">☷</button>
+        </div>
+      </header>
+      <main id="content" tabindex="-1"></main>
+    </div>
+  </div>
+
+  <div id="modal-backdrop" class="modal-backdrop" hidden>
+    <section id="modal" class="modal" role="dialog" aria-modal="true" aria-labelledby="modal-title"></section>
+  </div>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
