@@ -19,6 +19,7 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
 import java.util.concurrent.Executors
+import java.util.concurrent.atomic.AtomicLong
 
 data class PiperVoice(val id:String,val label:String,val region:String,val bytes:Long,val sha256:String?=null){
  val base:String get()=id
@@ -38,10 +39,11 @@ val PIPER_VOICES=listOf(
  PiperVoice("es_ES-davefx-medium","DaveFX · Medium (España)","es_ES",63_221_984L)
 )
 class StudyshPiper(private val context:Context){
- val japanese=JapaneseDeviceSpeech(context)
- val voicevox=VoicevoxSpeech(context)
+ val japanese=SupertonicSpeech(context.applicationContext)
  private val preferences=context.getSharedPreferences("piper",Context.MODE_PRIVATE)
  private val worker=Executors.newSingleThreadExecutor()
+ private val request=AtomicLong()
+ @Volatile private var closed=false
  private val player=PiperPlayer()
  private var engine:PiperEngine?=null
  private var engineVoice:String?=null
@@ -76,9 +78,11 @@ class StudyshPiper(private val context:Context){
   return model(voice).isFile && model(voice).length()>voice.bytes*0.8 && config(voice).isFile && config(voice).length()>500
  }
  fun select(voice:PiperVoice){
+  if(closed)return
   if(!installed(voice)){message="Download this voice before selecting it.";return}
+  request.incrementAndGet()
   player.stop()
-  if(engineVoice!=voice.id){engine?.close();engine=null;engineVoice=null}
+  worker.execute{if(engineVoice!=voice.id){engine?.close();engine=null;engineVoice=null}}
   activeVoice=voice.id;preferences.edit().putString("voice",voice.id).apply();message=""
  }
  fun download(voice:PiperVoice){
@@ -143,12 +147,20 @@ class StudyshPiper(private val context:Context){
   speak(sample)
  }
  fun speak(text:String,language:String="English"){
-  if(language=="Japanese"){voicevox.speak(text);return}
-  if(text.isBlank())return
+  if(closed || text.isBlank())return
+  val id=request.incrementAndGet()
+  if(SpeechRouting.isJapanese(language)){
+   player.stop()
+   worker.execute{engine?.close();engine=null;engineVoice=null}
+   japanese.speak(text);return
+  }
+  japanese.releaseForPiper()
+  player.stop()
   val voice=PIPER_VOICES.firstOrNull{it.id==activeVoice}?:PIPER_VOICES[0]
   if(!installed(voice)){message="Download ${voice.label} in Voice settings first.";return}
   worker.execute{
    try{
+    if(closed || request.get()!=id)return@execute
     if(engineVoice!=voice.id){
      ensureEspeakData()
      player.stop();engine?.close()
@@ -158,17 +170,15 @@ class StudyshPiper(private val context:Context){
      engineVoice=voice.id
     }
     player.stop()
-    player.play(engine!!,text,speakerId=0)
+    if(!closed && request.get()==id)player.play(engine!!,text,speakerId=0)
    }catch(e:Exception){message="Piper playback failed: ${e.localizedMessage}"}
   }
  }
- fun stop(){player.stop();japanese.stop();voicevox.stop()}
- fun close(){player.stop();japanese.close();voicevox.close();worker.execute{engine?.close();engine=null};worker.shutdown()}
+ fun stop(){request.incrementAndGet();player.stop();japanese.stop()}
+ fun close(){if(closed)return;closed=true;stop();japanese.close();worker.execute{engine?.close();engine=null};worker.shutdown()}
 }
 @Composable
 fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
- val context=androidx.compose.ui.platform.LocalContext.current
- val supertonic=remember { SupertonicModels(context.applicationContext) }
  Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(18.dp),
   verticalArrangement=Arrangement.spacedBy(18.dp)){
   Row(verticalAlignment=Alignment.CenterVertically){
@@ -198,38 +208,7 @@ fun PiperVoiceSettings(piper:StudyshPiper,onBack:()->Unit){
    }
   }
   }
-  Text("日本語 · VOICEVOX · 四国めたん",style=MaterialTheme.typography.titleLarge)
-  Text("Female Japanese voice · VOICEVOX Engine on your computer (same Wi-Fi). The Android app connects to the engine; no device TTS is used.",style=MaterialTheme.typography.bodySmall)
-  var engineAddress by remember { mutableStateOf(piper.voicevox.endpoint) }
-  var voicevoxEnabled by remember { mutableStateOf(piper.voicevox.enabled) }
-  OutlinedTextField(value=engineAddress,onValueChange={engineAddress=it},label={Text("VOICEVOX Engine URL")},placeholder={Text("http://192.168.1.10:50021")},singleLine=true,modifier=Modifier.fillMaxWidth())
-  Row(verticalAlignment=Alignment.CenterVertically) {
-   Checkbox(checked=voicevoxEnabled,onCheckedChange={voicevoxEnabled=it})
-   Text("Use VOICEVOX for Japanese lessons")
-  }
-  Button(onClick={piper.voicevox.configure(engineAddress,voicevoxEnabled)}){Text("Save VOICEVOX settings")}
-  OutlinedButton(onClick={piper.voicevox.configure(engineAddress,voicevoxEnabled);piper.voicevox.speak("こんにちは。日本語を一緒に勉強しましょう。")},enabled=!piper.voicevox.busy){Text("Test Shikoku Metan")}
-  if(piper.voicevox.message.isNotBlank())Text(piper.voicevox.message,style=MaterialTheme.typography.bodySmall)
-  Text("日本語 · Supertonic 3 (experimental)",style=MaterialTheme.typography.titleLarge)
-  Text(if(supertonic.installed())"Supertonic model files installed" else "Supertonic 3 model download · approximately 400 MB",style=MaterialTheme.typography.bodySmall)
-  if(supertonic.busy)LinearProgressIndicator(progress={supertonic.progress},modifier=Modifier.fillMaxWidth())
-  if(!supertonic.installed())Button(onClick={supertonic.install()},enabled=!supertonic.busy){Text("Download Supertonic 3")}
-  if(supertonic.status.isNotBlank())Text(supertonic.status,style=MaterialTheme.typography.bodySmall)
-  Text("Sarah and Lily use the Supertonic engine (not Piper). Model installation and offline playback require a separate engine integration.",style=MaterialTheme.typography.bodySmall)
-  listOf("Sarah" to "F1","Lily" to "F2").forEach{(name,id)->
-   ElevatedCard(Modifier.fillMaxWidth()){
-    Row(Modifier.fillMaxWidth().padding(16.dp),verticalAlignment=Alignment.CenterVertically){
-     Column(Modifier.weight(1f)){
-      Text("$name · Supertonic $id",style=MaterialTheme.typography.titleMedium)
-      Text(if(supertonic.installed())"Japanese · Model downloaded · Playback not yet implemented" else "Japanese · Download engine assets first",style=MaterialTheme.typography.bodySmall)
-     }
-     OutlinedButton(onClick={android.content.Intent(android.content.Intent.ACTION_VIEW,
-      android.net.Uri.parse("https://huggingface.co/spaces/Supertone/supertonic-3")).also{
-       context.startActivity(it)
-      }}){Text("Listen")}
-    }
-   }
-  }
+  SupertonicVoiceSettings(piper.japanese)
   if(piper.message.isNotBlank())Text(piper.message,color=MaterialTheme.colorScheme.secondary)
   Text("LibriTTS High contains multiple speakers; this version uses speaker 0. Models are stored privately on your device.",style=MaterialTheme.typography.bodySmall)
  }

@@ -2,81 +2,75 @@ package com.oyayasu.studysh
 
 import android.content.Context
 import androidx.compose.runtime.*
-import org.json.JSONObject
+import com.oyayasu.studysh.supertonic.ModelStore
+import com.oyayasu.studysh.supertonic.SupertonicAssets
+import kotlinx.coroutines.*
 import java.io.File
-import java.net.HttpURLConnection
-import java.net.URL
-import java.util.concurrent.Executors
 
-/**
- * Downloads the actual Supertonic 3 ONNX model and F1/F2 voice-style profiles.
- * This manages model assets only; inference must be provided by a compatible ONNX engine.
- */
-class SupertonicModels(context:Context) {
- private val root=File(context.filesDir,"supertonic-3").apply{mkdirs()}
- private val executor=Executors.newSingleThreadExecutor()
- private val revision="aafc6e32416a594460b32413efc49d7fe4ce6d46"
- private val base="https://huggingface.co/supertone-oss-archive/supertonic-3/resolve/$revision"
- private val files=linkedMapOf(
-  "onnx/duration_predictor.onnx" to 3700147L,
-  "onnx/text_encoder.onnx" to 36416150L,
-  "onnx/vector_estimator.onnx" to 256534781L,
-  "onnx/vocoder.onnx" to 101424195L,
-  "onnx/tts.json" to 8253L,
-  "onnx/unicode_indexer.json" to 277676L,
-  "voice_styles/F1.json" to 292046L,
-  "voice_styles/F2.json" to 292423L
- )
- var busy by mutableStateOf(false);private set
- var progress by mutableFloatStateOf(0f);private set
- var status by mutableStateOf("");private set
- var revisionState by mutableIntStateOf(0);private set
- fun installed():Boolean{
-  revisionState
-  return files.all{(name,size)->File(root,name).let{it.isFile && it.length()==size}}
- }
- fun modelDirectory():File?=root.takeIf{installed()}
- fun install(){
-  if(busy || installed())return
-  busy=true;progress=0f;status="Downloading Supertonic 3…"
-  executor.execute {
-   try{
-    val total=files.values.sum()
-    var completed=0L
-    files.forEach{(name,size)->
-     val target=File(root,name)
-     if(target.isFile && target.length()==size){completed+=size;progress=completed.toFloat()/total;return@forEach}
-     target.parentFile?.mkdirs()
-     val part=File(target.absolutePath+".part")
-     part.delete()
-     val connection=URL("$base/$name?download=true").openConnection() as HttpURLConnection
-     connection.connectTimeout=30000;connection.readTimeout=90000
-     try{
-      if(connection.responseCode !in 200..299)error("HTTP ${connection.responseCode}: $name")
-      connection.inputStream.use{input->
-       part.outputStream().buffered().use{out->
-        val buffer=ByteArray(65536)
-        while(true){
-         val count=input.read(buffer)
-         if(count<0)break
-         out.write(buffer,0,count)
-         progress=((completed+part.length()).toDouble()/total).toFloat().coerceIn(0f,1f)
+/** Download state shared by settings and lesson playback, owned for the app's lifetime. */
+class SupertonicModels(context: Context) {
+    val root = File(context.filesDir, "supertonic-3")
+    private val store = ModelStore(root)
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var job: Job? = null
+    private var verified by mutableStateOf(emptySet<String>())
+    var busy by mutableStateOf(true); private set
+    var progress by mutableFloatStateOf(0f); private set
+    var downloadedBytes by mutableLongStateOf(0L); private set
+    var totalBytes by mutableLongStateOf(0L); private set
+    var status by mutableStateOf("Checking installed Supertonic models…"); private set
+    var error by mutableStateOf<String?>(null); private set
+
+    init {
+        job = scope.launch {
+            try {
+                verified = withContext(Dispatchers.IO) { store.verifiedPaths(SupertonicAssets.all) }
+                status = if (installed("F1")) "Supertonic 3 · Offline ready" else "Download F1 to enable Japanese audio."
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                error = "Could not check voice files: ${e.localizedMessage}"
+            } finally { busy = false }
         }
-       }
-      }
-     }finally{connection.disconnect()}
-     if(part.length()!=size)error("Incomplete asset: $name (${part.length()} / $size)")
-     if(!part.renameTo(target))error("Cannot save $name")
-     completed+=size
-     progress=completed.toFloat()/total
     }
-    for(name in listOf("voice_styles/F1.json","voice_styles/F2.json")){
-     if(JSONObject(File(root,name).readText()).length()==0)error("Invalid voice style $name")
+
+    fun installed(voice: String = "F1") = SupertonicAssets.forVoice(voice).all { it.path in verified }
+
+    fun install(voice: String = "F1") {
+        if (busy || installed(voice)) return
+        busy = true; progress = 0f; downloadedBytes = 0L
+        totalBytes = SupertonicAssets.forVoice(voice).sumOf { it.bytes }
+        error = null
+        status = "Downloading Supertonic 3 · $voice…"
+        job = scope.launch {
+            val operation = currentCoroutineContext()
+            try {
+                withContext(Dispatchers.IO) {
+                    var lastUpdate = 0L
+                    store.install(SupertonicAssets.forVoice(voice), { !operation.isActive }) { state ->
+                        val now = System.nanoTime()
+                        if (now - lastUpdate >= 150_000_000L || state.downloaded == state.total) {
+                            lastUpdate = now
+                            scope.launch {
+                                downloadedBytes = state.downloaded; totalBytes = state.total
+                                progress = (state.downloaded.toDouble() / state.total).toFloat().coerceIn(0f, 1f)
+                                status = "Downloading / verifying ${state.path}"
+                            }
+                        }
+                    }
+                }
+                verified = verified + SupertonicAssets.forVoice(voice).map { it.path }
+                status = "$voice installed · Ready for offline Japanese playback"
+                progress = 1f
+            } catch (e: CancellationException) {
+                status = "Download paused. Tap Download to resume."
+                throw e
+            } catch (e: Exception) {
+                error = "Supertonic download failed: ${e.localizedMessage}"
+                status = "Not installed · Tap Download to retry / resume"
+            } finally { busy = false }
+        }
     }
-    revisionState++
-    status="Supertonic 3 models downloaded. Speech engine integration is still required."
-   }catch(e:Exception){status="Supertonic download failed: ${e.localizedMessage}"}
-   finally{busy=false}
-  }
- }
+
+    fun cancel() { job?.cancel() }
+    fun close() { scope.cancel() }
 }

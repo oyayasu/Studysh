@@ -8,20 +8,21 @@ concurrency:
   cancel-in-progress: false
 permissions:
   contents: write
-  issues: write
 jobs:
   build:
     runs-on: ubuntu-24.04
+    timeout-minutes: 40
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: '17'
       - name: Checkout Piper native Android engine
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: piper-tts-apps/piper-kotlin
+          ref: 287b89079336d0d02f02d2bc96e93b7ca1e72bc5
           path: piper-kotlin
           submodules: recursive
       - name: Check Android SDK
@@ -30,13 +31,14 @@ jobs:
           test -d "$ANDROID_HOME"
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --licenses < /dev/null || true
           "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "platforms;android-35" "build-tools;35.0.0" "ndk;27.0.12077973" "cmake;3.22.1"
-      - uses: gradle/actions/setup-gradle@v4
+      - uses: gradle/actions/setup-gradle@v5
         with:
           gradle-version: '8.11.1'
       - name: Prepare Piper native dependencies and English phonemizer
         shell: bash
         run: |
           set -euo pipefail
+          test "$(sed -n 's/^piper.ortVersion=//p' piper-kotlin/gradle.properties)" = "1.31.0"
           bash piper-kotlin/scripts/fetch-native-deps.sh 2>&1 | tee "$RUNNER_TEMP/studysh-piper-prep.log"
           bash piper-kotlin/scripts/stage-espeak-data.sh 2>&1 | tee -a "$RUNNER_TEMP/studysh-piper-prep.log"
           mkdir -p app/src/main/assets/espeak-ng-data
@@ -46,6 +48,12 @@ jobs:
         run: |
           set -o pipefail
           gradle :app:testDebugUnitTest --stacktrace --no-daemon --console=plain 2>&1 | tee "$RUNNER_TEMP/studysh-tests.log"
+      - name: Download and verify Supertonic models for real inference tests
+        run: python3 scripts/download-supertonic-models.py "$RUNNER_TEMP/supertonic-models"
+      - name: Test real Japanese inference with F1-F5
+        env:
+          SUPERTONIC_MODEL_DIR: ${{ runner.temp }}/supertonic-models
+        run: gradle :speech-smoke:test --stacktrace --no-daemon --console=plain
       - name: Build debug APK
         shell: bash
         run: |
@@ -55,6 +63,7 @@ jobs:
         with:
           name: Studysh-Android-debug
           path: app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
       - name: Publish development release
         continue-on-error: true
         if: github.ref == 'refs/heads/main'
@@ -70,43 +79,15 @@ jobs:
           else
             gh release create android-dev "$apk" --repo "$GITHUB_REPOSITORY" --title "Studysh Android - Development" --notes "Latest successful debug APK. Commit: ${GITHUB_SHA}" --prerelease --target "${GITHUB_SHA}"
           fi
-      - name: Record successful APK build
-        if: success()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"[CI] Android build failure" in:title' --json number --jq '.[0].number' || true)
-          if [ -n "$issue" ]; then
-            gh issue close "$issue" --repo "$GITHUB_REPOSITORY" --comment "Android APK successfully compiled and uploaded as a workflow artifact for commit ${GITHUB_SHA}: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-          fi
-      - name: Record failure for independent diagnostics
-        if: failure()
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          {
-            echo "# Studysh Android CI diagnostics"
-            echo
-            echo "- Commit: \`${GITHUB_SHA}\`"
-            echo "- Run: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
-            echo
-            for logfile in "$RUNNER_TEMP/studysh-piper-prep.log" "$RUNNER_TEMP/studysh-tests.log" "$RUNNER_TEMP/studysh-build.log"; do
-              if [ -f "$logfile" ]; then
-                echo "## $(basename "$logfile")"
-                echo '~~~text'
-                echo '### Compiler errors and test failures'
-                grep -E '^e: |^> Task .*FAILED| FAILED$| tests completed|^FAILURE:|^\* What went wrong:' "$logfile" | tail -n 100 || true
-                echo '### End of build log'
-                tail -n 100 "$logfile"
-                echo '~~~'
-              fi
-            done
-          } > "$RUNNER_TEMP/studysh-ci-failure.md"
-          issue=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search '"[CI] Android build failure" in:title' --json number --jq '.[0].number' || true)
-          if [ -n "$issue" ]; then
-            gh issue edit "$issue" --repo "$GITHUB_REPOSITORY" --body-file "$RUNNER_TEMP/studysh-ci-failure.md"
-          else
-            gh issue create --repo "$GITHUB_REPOSITORY" --title "[CI] Android build failure" --body-file "$RUNNER_TEMP/studysh-ci-failure.md"
-          fi
+      - name: Upload test reports, voice samples and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Studysh-test-reports-and-voice-samples
+          path: |
+            app/build/reports/tests/
+            app/build/test-results/
+            speech-smoke/build/reports/tests/
+            speech-smoke/build/test-results/
+            speech-smoke/build/voice-samples/
+            ${{ runner.temp }}/studysh-*.log

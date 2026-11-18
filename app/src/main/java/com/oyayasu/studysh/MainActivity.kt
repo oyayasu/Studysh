@@ -131,7 +131,7 @@ private fun prompt(queries:List<StudyQuery>,language:String):String {
  }
  return """
 ROLE
-You are a private teacher of ${target} for a Brazilian Portuguese ${language=="Portuguese"?"native speaker":"learner"}. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
+You are a private teacher of ${target} for a Brazilian Portuguese ${if(language=="Portuguese") "native speaker" else "learner"}. Your goal is independent understanding, recognition, and production of words, expressions and constructions. Teach what is needed for real mastery, not for length. Never behave like an encyclopedia, dictionary, or rigid template.
 
 REQUESTS — analyze each independently; context and source sentence belong ONLY to their own term:
 ${requested.toString(2)}
@@ -344,6 +344,14 @@ For blocks, titles are free and sections are optional. Style colors: purple=conc
        IconButton(onClick={entryDraft=JSONObject(item.original).toString(2);editorError="";advancedEdit=false;editEntry=true}){Icon(Icons.Outlined.Edit,"Edit term")}
        IconButton(onClick={deleteEntry=true}){Icon(Icons.Outlined.DeleteOutline,"Delete term",tint=Color(0xFFAE5A68))}
       }
+      if(SpeechRouting.isJapanese(item.language)){
+       if(piper.japanese.busy){
+        LinearProgressIndicator(modifier=Modifier.fillMaxWidth())
+        TextButton(onClick={piper.japanese.stop()}){Text("Stop audio")}
+       }
+       if(piper.japanese.message.isNotBlank())Text(piper.japanese.message,fontSize=13.sp,color=Muted)
+       piper.japanese.error?.let{Text(it,fontSize=13.sp,color=MaterialTheme.colorScheme.error)}
+      }else if(piper.message.isNotBlank())Text(piper.message,fontSize=13.sp,color=MaterialTheme.colorScheme.error)
      }
      val studyContext=runCatching{JSONObject(item.original).optString("context")}.getOrDefault("")
      if(studyContext.isNotBlank())item{
