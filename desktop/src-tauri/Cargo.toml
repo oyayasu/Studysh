@@ -1,0 +1,18 @@
+[package]
+name = "studysh-desktop"
+version = "0.1.0"
+description = "Studysh desktop vocabulary studio"
+authors = ["Studysh"]
+edition = "2021"
+rust-version = "1.77.2"
+
+[lib]
+name = "studysh_desktop_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+rfd = "0.15"
