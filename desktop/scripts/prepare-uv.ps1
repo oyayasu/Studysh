@@ -32,7 +32,9 @@ try {
     if ($actual -ne $sha256) {
         throw "uv download failed integrity check (SHA256 mismatch)."
     }
-    Expand-Archive -Path $tempZip -DestinationPath $unpacked -Force
+    # The destination is new. This overload works on both .NET Framework 4.x and PowerShell 7.
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [System.IO.Compression.ZipFile]::ExtractToDirectory($tempZip, $unpacked)
     $binary = Get-ChildItem -Path $unpacked -Filter "uv.exe" -File -Recurse | Select-Object -First 1
     if (-not $binary) { throw "uv.exe was not found in the verified release archive." }
     Copy-Item $binary.FullName $target -Force

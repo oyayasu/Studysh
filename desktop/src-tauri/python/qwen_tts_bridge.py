@@ -119,6 +119,10 @@ def load_model(model_dir):
     os.environ["HF_HUB_OFFLINE"] = "1"
     os.environ["TRANSFORMERS_OFFLINE"] = "1"
     os.environ["TOKENIZERS_PARALLELISM"] = "false"
+    os.environ["HF_HUB_DISABLE_TELEMETRY"] = "1"
+    os.environ["GRADIO_ANALYTICS_ENABLED"] = "False"
+    import onnxruntime
+    onnxruntime.disable_telemetry_events()
     import torch
     from qwen_tts import Qwen3TTSModel
     torch.set_num_threads(min(8, max(1, (os.cpu_count() or 4) // 2)))
