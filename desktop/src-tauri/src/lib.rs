@@ -103,7 +103,9 @@ fn uv_command(app: &tauri::AppHandle, root: &Path) -> Result<Command, String> {
         .env("UV_CACHE_DIR", root.join("uv-cache"))
         .env("UV_NO_MODIFY_PATH", "1")
         .env("UV_NO_PROGRESS", "1")
-        .env("UV_PYTHON_PREFERENCE", "only-managed");
+        // --managed-python on `uv venv` is the single source of truth. A
+        // UV_PYTHON_PREFERENCE override conflicts with that flag in uv 0.13.
+        .env_remove("UV_PYTHON_PREFERENCE");
     Ok(cmd)
 }
 
