@@ -28,13 +28,16 @@ jobs:
         run: npm install --no-audit --no-fund
       - name: Validate desktop modules and behavior
         run: |
+          node --check web/icons.js
           node --check web/app.js
           node --check web/prompt.js
           node --check web/core.js
           node --check web/fsrs.js
           npm test
+      - name: Verify Qwen3 Python worker syntax
+        run: python -m py_compile src-tauri/python/qwen_tts_bridge.py
       - name: Build Windows NSIS installer
-        run: npm run tauri build -- --bundles nsis
+        run: npm run build
       - uses: actions/upload-artifact@v4
         with:
           name: Studysh-Windows-Installer
