@@ -34,7 +34,7 @@ def serve(model_dir: Path):
     protocol = sys.stdout
     sys.stdout = sys.stderr
     if not (model_dir / ".studysh-ready").is_file():
-        protocol.write('{"error":"Qwen3 model has not been downloaded yet."}\\n')
+        protocol.write('{"error":"Qwen3 model has not been downloaded yet."}\n')
         protocol.flush()
         return 1
     try:
@@ -52,10 +52,10 @@ def serve(model_dir: Path):
             dtype=torch.float32,
             attn_implementation="eager",
         )
-        protocol.write('{"ready":true}\\n')
+        protocol.write('{"ready":true}\n')
         protocol.flush()
     except Exception as exc:
-        protocol.write(json.dumps({"error": f"Unable to load Qwen3-TTS: {exc}"}, ensure_ascii=False) + "\\n")
+        protocol.write(json.dumps({"error": f"Unable to load Qwen3-TTS: {exc}"}, ensure_ascii=False) + "\n")
         protocol.flush()
         return 1
 
@@ -80,7 +80,7 @@ def serve(model_dir: Path):
             result = {"audio_base64": base64.b64encode(wav.getvalue()).decode("ascii")}
         except Exception as exc:
             result = {"error": str(exc)}
-        protocol.write(json.dumps(result, ensure_ascii=False) + "\\n")
+        protocol.write(json.dumps(result, ensure_ascii=False) + "\n")
         protocol.flush()
     return 0
 
