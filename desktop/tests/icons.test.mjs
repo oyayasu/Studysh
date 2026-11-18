@@ -37,3 +37,17 @@ test("Qwen3 uses the native Tauri worker and never replaces Windows speech",()=>
  assert.match(web,/value="windows"/);
  assert.match(web,/value="qwen"/);
 });
+
+test("Qwen3 automatically provisions its own Python instead of demanding a system installation",()=>{
+ const rust=readFileSync(new URL("../src-tauri/src/lib.rs",import.meta.url),"utf8");
+ const ui=readFileSync(new URL("../web/app.js",import.meta.url),"utf8");
+ const config=readFileSync(new URL("../src-tauri/tauri.conf.json",import.meta.url),"utf8");
+ const script=readFileSync(new URL("../scripts/prepare-uv.ps1",import.meta.url),"utf8");
+ assert.match(rust,/--managed-python/);
+ assert.match(rust,/--python", "3\\.12"/);
+ assert.match(rust,/UV_PYTHON_INSTALL_DIR/);
+ assert.doesNotMatch(rust,/fn compatible_python/);
+ assert.match(config,/resources\\/uv\\.exe/);
+ assert.match(ui,/No separate Python setup required/);
+ assert.match(script,/Get-FileHash/);
+});
