@@ -172,7 +172,7 @@ async fn qwen_install(app: tauri::AppHandle) -> Result<(), String> {
 
 fn download_model(app: &tauri::AppHandle) -> Result<(), String> {
     let root = qwen_root(app)?;
-    if !root.join(".dependencies-ready").is_file() {
+    if !environment_ready(&root) {
         return Err("Install Qwen3 dependencies first.".into());
     }
     if model_path(&root).join(".studysh-ready").is_file() {
@@ -236,7 +236,7 @@ struct QwenRuntime(Mutex<Option<QwenProcess>>);
 
 fn start_qwen(app: &tauri::AppHandle) -> Result<QwenProcess, String> {
     let root = qwen_root(app)?;
-    if !root.join(".dependencies-ready").is_file()
+    if !environment_ready(&root)
         || !model_path(&root).join(".studysh-ready").is_file()
     {
         return Err("Qwen3 is not installed. Open Settings → Voice and download it first.".into());
