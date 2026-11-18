@@ -49,5 +49,5 @@ test("Qwen3 automatically provisions its own Python instead of demanding a syste
  assert.doesNotMatch(rust,/fn compatible_python/);
  assert.ok(config.includes("resources/uv.exe"));
  assert.match(ui,/No separate Python setup required/);
- assert.match(script,/Get-FileHash/);
+ assert.match(script,/Security\.Cryptography\.SHA256/);
 });
