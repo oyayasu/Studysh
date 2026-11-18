@@ -1,4 +1,5 @@
-// Small, self-contained outline icon set (Lucide-inspired, MIT style).
+// Small, self-contained outline icon set adapted from Lucide / Feather.
+// See THIRD_PARTY_NOTICES.md (ISC / MIT).
 // SVG avoids dependence on font glyph coverage and Windows WebView fonts.
 const shapes = {
   house: '<path d="m3 10 9-7 9 7"/><path d="M5 9v12h14V9"/><path d="M9 21v-7h6v7"/>',
