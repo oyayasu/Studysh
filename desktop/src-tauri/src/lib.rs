@@ -5,10 +5,11 @@ use std::io::{BufRead, BufReader, Write};
 use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStdin, ChildStdout, Command, Stdio};
 use std::sync::Mutex;
-use tauri::Manager;
+use tauri::{path::BaseDirectory, Manager};
 
 const BRIDGE: &str = include_str!("../python/qwen_tts_bridge.py");
 const MODEL: &str = "Qwen/Qwen3-TTS-12Hz-0.6B-CustomVoice";
+const PYTHON_ENV_VERSION: &str = "qwen3-tts-managed-python-3.12-v2";
 
 #[tauri::command]
 fn open_json_file() -> Result<Option<String>, String> {
@@ -70,7 +71,7 @@ fn write_bridge(root: &Path) -> Result<PathBuf, String> {
 fn qwen_status(app: tauri::AppHandle) -> Result<QwenStatus, String> {
     let root = qwen_root(&app)?;
     let python = venv_python(&root);
-    let installed = python.is_file() && root.join(".dependencies-ready").is_file();
+    let installed = python.is_file() && environment_ready(&root);
     let model = installed && model_path(&root).join(".studysh-ready").is_file();
     Ok(QwenStatus {
         dependencies_installed: installed,
@@ -80,20 +81,30 @@ fn qwen_status(app: tauri::AppHandle) -> Result<QwenStatus, String> {
     })
 }
 
-fn compatible_python() -> Result<(String, Vec<String>), String> {
-    for (program, prefix) in [
-        ("py", vec!["-3.12"]),
-        ("py", vec!["-3.11"]),
-        ("python", vec![]),
-    ] {
-        let mut cmd = Command::new(program);
-        cmd.args(&prefix)
-            .args(["-c", "import sys; assert (3, 11) <= sys.version_info[:2] <= (3, 12)"]);
-        if cmd.stdout(Stdio::null()).stderr(Stdio::null()).status().is_ok_and(|s| s.success()) {
-            return Ok((program.to_string(), prefix.into_iter().map(String::from).collect()));
-        }
+// Studysh bundles the signed, SHA256-verified Astral uv executable.
+// uv downloads a CPython 3.12 interpreter exclusively into Studysh's local
+// app data directory; it never needs or modifies the user's Python or PATH.
+fn environment_ready(root: &Path) -> bool {
+    fs::read_to_string(root.join(".dependencies-ready"))
+        .is_ok_and(|value| value == PYTHON_ENV_VERSION)
+        && venv_python(root).is_file()
+}
+
+fn uv_command(app: &tauri::AppHandle, root: &Path) -> Result<Command, String> {
+    let binary = app.path()
+        .resolve("resources/uv.exe", BaseDirectory::Resource)
+        .map_err(|e| e.to_string())?;
+    if !binary.is_file() {
+        return Err("The Studysh installer is missing its bundled Python manager (uv.exe). Reinstall the latest Windows build.".into());
     }
-    Err("Install Python 3.11 or 3.12 for Windows from python.org, then retry Qwen3 setup.".into())
+    let mut cmd = Command::new(binary);
+    cmd.env("UV_PYTHON_INSTALL_DIR", root.join("python"))
+        .env("UV_PYTHON_BIN_DIR", root.join("bin"))
+        .env("UV_CACHE_DIR", root.join("uv-cache"))
+        .env("UV_NO_MODIFY_PATH", "1")
+        .env("UV_NO_PROGRESS", "1")
+        .env("UV_PYTHON_PREFERENCE", "only-managed");
+    Ok(cmd)
 }
 
 fn checked_command(mut command: Command, stage: &str) -> Result<(), String> {
@@ -110,36 +121,45 @@ fn checked_command(mut command: Command, stage: &str) -> Result<(), String> {
 fn install_dependencies(app: &tauri::AppHandle) -> Result<(), String> {
     let root = qwen_root(app)?;
     fs::create_dir_all(&root).map_err(|e| e.to_string())?;
-    if root.join(".dependencies-ready").is_file() && venv_python(&root).is_file() {
+    if environment_ready(&root) {
         return Ok(());
     }
+
+    // A partially installed or previously incompatible environment is safe
+    // to recreate: voice models and downloaded uv cache are in other folders.
+    let venv = root.join("venv");
+    if venv.exists() {
+        fs::remove_dir_all(&venv).map_err(|e| {
+            format!("Cannot replace old Qwen3 Python environment: {e}. Close other Studysh processes and retry.")
+        })?;
+    }
+    let mut create = uv_command(app, &root)?;
+    create.args(["venv", "--python", "3.12", "--managed-python"])
+        .arg(&venv);
+    checked_command(create, "Creating private Python 3.12 environment")?;
+
     let python = venv_python(&root);
     if !python.is_file() {
-        let (program, prefix) = compatible_python()?;
-        let mut cmd = Command::new(program);
-        cmd.args(prefix).args(["-m", "venv"]).arg(root.join("venv"));
-        checked_command(cmd, "Creating Qwen3 Python environment")?;
+        return Err("The managed Python 3.12 environment was not created correctly.".into());
     }
-    let mut pip = Command::new(&python);
-    pip.args(["-m", "pip", "install", "--disable-pip-version-check", "--upgrade", "pip"]);
-    checked_command(pip, "Updating pip")?;
+    // Use CPU-specific PyTorch and torchaudio as one coherent pair rather
+    // than pulling CUDA packages on Windows with an AMD GPU.
+    let mut torch = uv_command(app, &root)?;
+    torch.arg("pip").arg("install").arg("--python").arg(&python)
+        .args(["torch", "torchaudio", "--index-url", "https://download.pytorch.org/whl/cpu"]);
+    checked_command(torch, "Installing CPU PyTorch and torchaudio")?;
 
-    // The AMD RX 7600 does not support CUDA; choose a genuine CPU Torch wheel
-    // instead of downloading NVIDIA dependencies or silently claiming GPU speed.
-    let mut torch = Command::new(&python);
-    torch.args([
-        "-m", "pip", "install", "--disable-pip-version-check",
-        "torch", "--index-url", "https://download.pytorch.org/whl/cpu",
-    ]);
-    checked_command(torch, "Installing CPU PyTorch")?;
-
-    let mut qwen = Command::new(&python);
-    qwen.args([
-        "-m", "pip", "install", "--disable-pip-version-check",
-        "qwen-tts", "soundfile", "huggingface_hub",
-    ]);
+    let mut qwen = uv_command(app, &root)?;
+    qwen.arg("pip").arg("install").arg("--python").arg(&python)
+        .args(["qwen-tts==0.1.1", "soundfile", "huggingface_hub"]);
     checked_command(qwen, "Installing Qwen3-TTS packages")?;
-    fs::write(root.join(".dependencies-ready"), MODEL).map_err(|e| e.to_string())?;
+
+    let mut test = Command::new(&python);
+    test.args(["-c", "import torch, torchaudio, qwen_tts, soundfile; print(torch.__version__)"]);
+    checked_command(test, "Validating Qwen3-TTS Python libraries")?;
+
+    fs::write(root.join(".dependencies-ready"), PYTHON_ENV_VERSION)
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
