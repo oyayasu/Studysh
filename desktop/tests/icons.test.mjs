@@ -44,10 +44,10 @@ test("Qwen3 automatically provisions its own Python instead of demanding a syste
  const config=readFileSync(new URL("../src-tauri/tauri.conf.json",import.meta.url),"utf8");
  const script=readFileSync(new URL("../scripts/prepare-uv.ps1",import.meta.url),"utf8");
  assert.match(rust,/--managed-python/);
- assert.match(rust,/--python", "3\\.12"/);
+ assert.ok(rust.includes('"3.12", "--managed-python"'));
  assert.match(rust,/UV_PYTHON_INSTALL_DIR/);
  assert.doesNotMatch(rust,/fn compatible_python/);
- assert.match(config,/resources\\/uv\\.exe/);
+ assert.ok(config.includes("resources/uv.exe"));
  assert.match(ui,/No separate Python setup required/);
  assert.match(script,/Get-FileHash/);
 });
