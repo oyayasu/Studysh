@@ -41,6 +41,16 @@ jobs:
         run: python -m py_compile src-tauri/python/qwen_tts_bridge.py
       - name: Build Windows NSIS installer
         run: npm run build
+      - name: Verify automatic managed Python 3.12 on Windows
+        shell: pwsh
+        run: |
+          $env:UV_PYTHON_INSTALL_DIR = Join-Path $env:RUNNER_TEMP "studysh-managed-python"
+          $env:UV_CACHE_DIR = Join-Path $env:RUNNER_TEMP "studysh-uv-cache"
+          $environment = Join-Path $env:RUNNER_TEMP "studysh-qwen-smoke-venv"
+          & ".\src-tauri\resources\uv.exe" venv --python 3.12 --managed-python $environment
+          if ($LASTEXITCODE -ne 0) { throw "Failed to bootstrap private Python 3.12." }
+          & (Join-Path $environment "Scripts\python.exe") -c 'import sys; assert sys.version_info[:2] == (3, 12); print(sys.version)'
+          if ($LASTEXITCODE -ne 0) { throw "Private Python does not match 3.12." }
       - uses: actions/upload-artifact@v4
         with:
           name: Studysh-Windows-Installer
@@ -59,6 +69,13 @@ jobs:
           if ($LASTEXITCODE -eq 0) {
             gh release upload desktop-dev $installer.FullName --repo $env:GITHUB_REPOSITORY --clobber
             if ($LASTEXITCODE -ne 0) { exit 1 }
+            $assets = gh release view desktop-dev --repo $env:GITHUB_REPOSITORY --json assets --jq '.assets[].name'
+            foreach ($asset in $assets) {
+              if ($asset -like 'Studysh_*_x64-setup.exe' -and $asset -ne $installer.Name) {
+                gh release delete-asset desktop-dev $asset --repo $env:GITHUB_REPOSITORY --yes
+                if ($LASTEXITCODE -ne 0) { exit 1 }
+              }
+            }
             gh release edit desktop-dev --repo $env:GITHUB_REPOSITORY --title "Studysh Desktop Windows - Development" --notes $body --prerelease
           } else {
             gh release create desktop-dev $installer.FullName --repo $env:GITHUB_REPOSITORY --title "Studysh Desktop Windows - Development" --notes $body --prerelease --target $env:GITHUB_SHA
