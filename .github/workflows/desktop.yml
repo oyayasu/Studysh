@@ -1,0 +1,59 @@
+name: Studysh Desktop Windows
+on:
+  push:
+    branches: [main, desktop/windows-v1]
+    paths:
+      - "desktop/**"
+      - ".github/workflows/desktop.yml"
+  workflow_dispatch:
+permissions:
+  contents: write
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 50
+    defaults:
+      run:
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+      - name: Install Tauri tooling
+        run: npm install --no-audit --no-fund
+      - name: Validate desktop modules and behavior
+        run: |
+          node --check web/app.js
+          node --check web/prompt.js
+          node --check web/core.js
+          node --check web/fsrs.js
+          npm test
+      - name: Build Windows NSIS installer
+        run: npm run tauri build -- --bundles nsis
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Studysh-Windows-Installer
+          path: desktop/src-tauri/target/release/bundle/nsis/*.exe
+          if-no-files-found: error
+      - name: Publish latest desktop development installer
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $installer = Get-ChildItem "src-tauri/target/release/bundle/nsis/*.exe" | Select-Object -First 1
+          if (-not $installer) { throw "Installer missing" }
+          $body = "Latest successful Windows installer. Commit: $env:GITHUB_SHA"
+          gh release view desktop-dev --repo $env:GITHUB_REPOSITORY *> $null
+          if ($LASTEXITCODE -eq 0) {
+            gh release upload desktop-dev $installer.FullName --repo $env:GITHUB_REPOSITORY --clobber
+            if ($LASTEXITCODE -ne 0) { exit 1 }
+            gh release edit desktop-dev --repo $env:GITHUB_REPOSITORY --title "Studysh Desktop Windows - Development" --notes $body --prerelease
+          } else {
+            gh release create desktop-dev $installer.FullName --repo $env:GITHUB_REPOSITORY --title "Studysh Desktop Windows - Development" --notes $body --prerelease --target $env:GITHUB_SHA
+          }
