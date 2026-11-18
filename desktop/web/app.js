@@ -375,7 +375,12 @@ document.addEventListener("input",e=>{
  }
 });
 document.addEventListener("change",e=>{
- if(e.target.id==="study-language")setLanguage(e.target.value);
+ const t=e.target;
+ if(t.id==="study-language")setLanguage(t.value);
+ if(!voiceDraft||qwenBusy)return;
+ if(t.id==="voice-engine"){voiceDraft.engine=t.value;renderVoiceSettings();}
+ if(t.id==="voice-system")voiceDraft.voice=t.value;
+ if(t.id==="voice-speaker")voiceDraft.speaker=t.value;
 });
 document.addEventListener("click",async e=>{
  const btn=e.target.closest("[data-action]");if(!btn)return;
@@ -445,13 +450,23 @@ document.addEventListener("click",async e=>{
   }
   case "choose-rating":state.session.rating=Number(btn.dataset.rating);render();break;
   case "next-question":advanceSession();break;
-  case "save-settings":{
-    state.language=canonical($("settings-language").value);state.voice=$("settings-voice").value;
-    state.furigana=$("settings-furigana").checked;state.muted=$("settings-muted").checked;
-    for(const key of ["language","voice","furigana","muted"])persistSetting(key,state[key]);
-    modalClose();render();showToast("Settings saved.");break;
-  }
-  case "test-voice":speak("Hello. This is Studysh.",state.language);break;
+  case "open-voice-settings":await showVoiceSettings();break;
+   case "install-qwen":await installQwen();break;
+   case "save-voice-settings":{
+     state.voiceEngine=voiceDraft.engine;state.voice=voiceDraft.voice;state.qwenSpeaker=voiceDraft.speaker;
+     for(const key of ["voiceEngine","voice","qwenSpeaker"])persistSetting(key,state[key]);
+     voiceDraft=null;modalClose();showToast("Voice settings saved.");break;
+   }
+   case "test-selected-voice":{
+     await speak(previewSpeech[state.language]||previewSpeech.English,state.language,voiceDraft);
+     break;
+   }
+   case "save-settings":{
+     state.language=canonical($("settings-language").value);
+     state.furigana=$("settings-furigana").checked;state.muted=$("settings-muted").checked;
+     for(const key of ["language","furigana","muted"])persistSetting(key,state[key]);
+     modalClose();render();showToast("Settings saved.");break;
+   }
  }
  }catch(err){showToast((action.includes("import")?"Import failed: ":"Error: ")+(err?.message||String(err)));}
 });
