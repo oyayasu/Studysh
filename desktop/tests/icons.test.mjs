@@ -27,7 +27,7 @@ test("Qwen3 uses the native Tauri worker and never replaces Windows speech",()=>
  const rust=readFileSync(new URL("../src-tauri/src/lib.rs",import.meta.url),"utf8");
  const bridge=readFileSync(new URL("../src-tauri/python/qwen_tts_bridge.py",import.meta.url),"utf8");
  const web=readFileSync(new URL("../web/app.js",import.meta.url),"utf8");
- for(const command of ["qwen_status","qwen_install","qwen_prepare","qwen_synthesize"]){
+ for(const command of ["qwen_status","qwen_install","qwen_cancel","qwen_log","qwen_synthesize"]){
   assert.ok(rust.includes(command),command);
  }
  assert.match(rust,/QwenRuntime\(Mutex<Option<QwenProcess>>\)/);

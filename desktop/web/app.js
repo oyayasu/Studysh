@@ -235,6 +235,24 @@ const QWEN_SPEAKERS=[
 ];
 const speakerIds=new Set(QWEN_SPEAKERS.map(v=>v[0]));
 let voiceDraft=null,qwenInfo=null,qwenError="",qwenBusy=false,qwenStage="",activeAudio=null,speechRequest=0;
+let qwenLogs=[], qwenTransfer=null, cancelling=false;
+function updateInstallation() {
+ const stage=$("qwen-stage"), bar=$("qwen-progress"), bytes=$("qwen-bytes"), log=$("qwen-log");
+ if(!stage)return;
+ if(qwenBusy)stage.textContent=cancelling?"Cancelling installation…":qwenStage;
+ if(bar){
+  if(qwenTransfer){
+   const {done,total,file}=qwenTransfer;
+   bar.max=total;bar.value=done;
+   bytes.textContent=Math.floor(done*100/total)+"% · "+(done/1048576).toFixed(1)+" / "+(total/1048576).toFixed(1)+" MiB · "+file;
+  }else{bar.removeAttribute("value");bytes.textContent="";}
+ }
+ if(log){
+  const atEnd=log.scrollHeight-log.clientHeight-log.scrollTop<8;
+  log.textContent=qwenLogs.join("\n");
+  if(atEnd)log.scrollTop=log.scrollHeight;
+ }
+}
 const speechCache=new Map();
 const previewSpeech={English:"Hello! Let's practice English together.",Japanese:"こんにちは。今日は日本語を練習しましょう。",
  Spanish:"Hola. Vamos a practicar español.",Portuguese:"Olá! Vamos praticar português."};
@@ -271,10 +289,13 @@ function renderVoiceSettings(){
  const qwenHtml='<div class="voice-panel"><div><label class="field" for="voice-speaker">Qwen3 speaker</label>'+
   '<select id="voice-speaker" class="field-select" '+(qwenBusy?"disabled":"")+'>'+speakers+'</select></div>'+
   '<p class="voice-hint">Qwen3-TTS 0.6B CustomVoice · nine voices · English, Japanese, Spanish and Portuguese. Native-accent voices are recommended for language practice.</p>'+
-  '<div class="voice-status '+(qwenError?"error":ready?"ready":"")+'" role="status">'+esc(qwenError||status)+'</div>'+
-  (!ready?'<button class="secondary" data-action="install-qwen" '+(qwenBusy||!window.__TAURI__?.core?.invoke?"disabled":"")+'>'+
-    icon("cloud-download",17)+' '+(qwenBusy?"Working…":qwenInfo?.dependencies_installed?"Download model":"Install & download")+'</button>':
+  '<div id="qwen-stage" class="voice-status '+(qwenError?"error":ready?"ready":"")+'" role="status">'+esc(qwenError||status)+'</div>'+
+  (qwenBusy?'<progress id="qwen-progress" aria-label="Installation progress"></progress><span id="qwen-bytes" class="small"></span>'+
+    '<button class="secondary" data-action="cancel-qwen" '+(cancelling?"disabled":"")+'>Cancel installation</button>':
+    !ready?'<button class="secondary" data-action="install-qwen" '+(!window.__TAURI__?.core?.invoke?"disabled":"")+'>'+
+    icon("cloud-download",17)+' '+(qwenLogs.length?"Resume installation":"Install & download")+'</button>':
     '<div class="pill green">'+icon("check",15)+' Ready offline</div>')+
+  (qwenBusy||qwenLogs.length?'<details class="qwen-details"><summary>Installation details</summary><pre id="qwen-log"></pre></details>':'')+
   '<p class="voice-hint">Studysh automatically installs a private Python 3.12 for Qwen3. No separate Python setup required. The first download uses several GB; afterward speech works offline. CPU synthesis may be slow.</p></div>';
  modalShow("Voice options",'<div class="voice-panel"><div><label class="field" for="voice-engine">Speech engine</label>'+
   '<select id="voice-engine" class="field-select" '+(qwenBusy?"disabled":"")+'>'+
@@ -285,25 +306,38 @@ function renderVoiceSettings(){
   '<button class="quiet" data-action="test-selected-voice" '+(qwenBusy||engine==="qwen"&&!ready?"disabled":"")+'>'+
   icon("volume-2",16)+' Test voice</button>'+
   '<button class="primary" data-action="save-voice-settings" '+(qwenBusy?"disabled":"")+'>Save voice</button>');
+ updateInstallation();
 }
 async function showVoiceSettings(){
- voiceDraft={engine:state.voiceEngine,voice:state.voice,speaker:state.qwenSpeaker};
- qwenError="";await refreshQwen();renderVoiceSettings();
+ voiceDraft={engine:qwenBusy?"qwen":state.voiceEngine,voice:state.voice,speaker:state.qwenSpeaker};
+ await refreshQwen();
+ const invoke=window.__TAURI__?.core?.invoke;
+ if(invoke&&!qwenBusy){
+  try{qwenLogs=(await invoke("qwen_log")).trimEnd().split("\n").filter(Boolean).slice(-300);}catch(e){qwenError=String(e);}
+ }
+ renderVoiceSettings();
 }
 async function installQwen(){
- const invoke=window.__TAURI__?.core?.invoke;
- if(qwenBusy||!invoke)return;
- qwenBusy=true;qwenError="";
+ const core=window.__TAURI__?.core;
+ if(qwenBusy||!core)return;
+ qwenBusy=true;qwenError="";qwenStage="Starting installation…";qwenLogs=[];qwenTransfer=null;cancelling=false;
+ renderVoiceSettings();
  try{
-  if(!qwenInfo?.dependencies_installed){
-   qwenStage="Installing private Python 3.12 and the local speech engine (large download)…";renderVoiceSettings();
-   await invoke("qwen_install");
-  }
-  qwenStage="Downloading Qwen3-TTS 0.6B model and tokenizer…";renderVoiceSettings();
-  await invoke("qwen_prepare");await refreshQwen();
+  const updates=new core.Channel();
+  updates.onmessage=event=>{
+   if(event.stage){qwenStage=event.stage;qwenTransfer=null;}
+   if(event.total>0)qwenTransfer=event;
+   if(event.line){qwenLogs.push(event.line);if(qwenLogs.length>300)qwenLogs.shift();}
+   updateInstallation();
+  };
+  await core.invoke("qwen_install",{updates});
   showToast("Qwen3-TTS is ready for offline speech.");
- }catch(e){qwenError="Setup failed: "+String(e);await refreshQwen();}
- finally{qwenBusy=false;qwenStage="";renderVoiceSettings();}
+ }catch(e){qwenError=String(e);}
+ finally{
+  await refreshQwen();
+  qwenBusy=false;cancelling=false;
+  if($("voice-engine"))renderVoiceSettings();
+ }
 }
 async function speak(text,language,selection=null){
  if(state.muted)return;
@@ -452,6 +486,11 @@ document.addEventListener("click",async e=>{
   case "next-question":advanceSession();break;
   case "open-voice-settings":await showVoiceSettings();break;
    case "install-qwen":await installQwen();break;
+   case "cancel-qwen":
+     cancelling=true;btn.disabled=true;updateInstallation();
+     try{await window.__TAURI__.core.invoke("qwen_cancel");}
+     catch(e){cancelling=false;btn.disabled=false;showToast(String(e));updateInstallation();}
+     break;
    case "save-voice-settings":{
      state.voiceEngine=voiceDraft.engine;state.voice=voiceDraft.voice;state.qwenSpeaker=voiceDraft.speaker;
      for(const key of ["voiceEngine","voice","qwenSpeaker"])persistSetting(key,state[key]);
