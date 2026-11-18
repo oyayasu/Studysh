@@ -21,7 +21,14 @@ try {
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
     Write-Host "Downloading uv 0.13.7 for the Windows installer..."
     Invoke-WebRequest -Uri $url -OutFile $tempZip -UseBasicParsing
-    $actual = (Get-FileHash $tempZip -Algorithm SHA256).Hash.ToLowerInvariant()
+    $hashAlgorithm = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $actual = [System.BitConverter]::ToString(
+            $hashAlgorithm.ComputeHash([System.IO.File]::ReadAllBytes($tempZip))
+        ).Replace("-", "").ToLowerInvariant()
+    } finally {
+        $hashAlgorithm.Dispose()
+    }
     if ($actual -ne $sha256) {
         throw "uv download failed integrity check (SHA256 mismatch)."
     }
