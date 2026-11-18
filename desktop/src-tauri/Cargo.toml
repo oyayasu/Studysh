@@ -1,6 +1,6 @@
 [package]
 name = "studysh-desktop"
-version = "0.1.0"
+version = "0.1.1"
 description = "Studysh desktop vocabulary studio"
 authors = ["Studysh"]
 edition = "2021"
