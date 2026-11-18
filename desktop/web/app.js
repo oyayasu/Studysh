@@ -275,7 +275,7 @@ function renderVoiceSettings(){
   (!ready?'<button class="secondary" data-action="install-qwen" '+(qwenBusy||!window.__TAURI__?.core?.invoke?"disabled":"")+'>'+
     icon("cloud-download",17)+' '+(qwenBusy?"Working…":qwenInfo?.dependencies_installed?"Download model":"Install & download")+'</button>':
     '<div class="pill green">'+icon("check",15)+' Ready offline</div>')+
-  '<p class="voice-hint">Setup needs internet, Python 3.11/3.12 and several GB of disk space. Generation then works offline. CPU synthesis may be slow.</p></div>';
+  '<p class="voice-hint">Studysh automatically installs a private Python 3.12 for Qwen3. No separate Python setup required. The first download uses several GB; afterward speech works offline. CPU synthesis may be slow.</p></div>';
  modalShow("Voice options",'<div class="voice-panel"><div><label class="field" for="voice-engine">Speech engine</label>'+
   '<select id="voice-engine" class="field-select" '+(qwenBusy?"disabled":"")+'>'+
   '<option value="windows" '+(engine==="windows"?"selected":"")+'>Windows voices</option>'+
@@ -296,7 +296,7 @@ async function installQwen(){
  qwenBusy=true;qwenError="";
  try{
   if(!qwenInfo?.dependencies_installed){
-   qwenStage="Installing the local engine (large download)…";renderVoiceSettings();
+   qwenStage="Installing private Python 3.12 and the local speech engine (large download)…";renderVoiceSettings();
    await invoke("qwen_install");
   }
   qwenStage="Downloading Qwen3-TTS 0.6B model and tokenizer…";renderVoiceSettings();
